@@ -1,89 +1,178 @@
-/* Nền tổng thể */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
 body {
-  margin: 0;
-  font-family: 'Segoe UI', sans-serif;
-  background: #0f172a;
-  color: #fff;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
+    font-family: 'Arial', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
 }
 
-/* Bố cục chính */
 .container {
-  max-width: 1100px;
-  width: 95%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+    max-width: 800px;
+    margin: 0 auto;
+    text-align: center;
 }
 
-/* Header */
-header {
-  text-align: center;
-  margin-bottom: 20px;
+h1 {
+    color: white;
+    margin-bottom: 20px;
+    font-size: 2.5em;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
 }
 
-/* Bố trí phần main */
-main {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  gap: 40px;
+.game-info {
+    background: white;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-/* Bàn cờ */
-.board {
-  display: grid;
-  grid-template-columns: repeat(8, 70px);
-  grid-template-rows: repeat(8, 70px);
-  border: 3px solid #ffffff33;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 0 15px #0008;
+#turn-indicator {
+    font-size: 1.2em;
+    font-weight: bold;
 }
 
-/* Ô cờ */
+#current-player {
+    color: #2c3e50;
+}
+
+button {
+    background: #e74c3c;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: background 0.3s;
+}
+
+button:hover {
+    background: #c0392b;
+}
+
+.board-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 30px;
+}
+
+#board {
+    display: grid;
+    grid-template-columns: repeat(8, 70px);
+    grid-template-rows: repeat(8, 70px);
+    border: 4px solid #2c3e50;
+    border-radius: 5px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    background: #2c3e50;
+}
+
 .square {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 38px;
-  cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 45px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
 }
 
-.light {
-  background: #f0d9b5;
+.square.light {
+    background-color: #f0d9b5;
 }
 
-.dark {
-  background: #b58863;
+.square.dark {
+    background-color: #b58863;
 }
 
-/* Sidebar */
-.sidebar {
-  width: 200px;
+.square:hover {
+    transform: scale(1.05);
+    z-index: 1;
+    position: relative;
 }
 
-.sidebar h3 {
-  text-align: center;
-  margin-bottom: 10px;
+.square.selected {
+    outline: 4px solid #f39c12;
+    outline-offset: -4px;
 }
 
-#movelist {
-  font-size: 14px;
-  padding-left: 20px;
+.square.valid-move {
+    background-color: rgba(46, 204, 113, 0.6) !important;
+}
+
+.square.valid-capture {
+    background-color: rgba(231, 76, 60, 0.6) !important;
+}
+
+.rules {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    text-align: left;
+}
+
+.rules h3 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.rules ul {
+    list-style: none;
+    padding: 0;
+}
+
+.rules li {
+    padding: 8px 0;
+    border-bottom: 1px solid #ecf0f1;
+    color: #34495e;
+}
+
+.rules li:last-child {
+    border-bottom: none;
+}
+
+.rules strong {
+    color: #e74c3c;
 }
 
 /* Responsive */
-@media (max-width: 800px) {
-  main {
-    flex-direction: column;
-    align-items: center;
-  }
-  .board {
-    grid-template-columns: repeat(8, 45px);
-    grid-template-rows: repeat(8, 45px);
-  }
+@media (max-width: 768px) {
+    #board {
+        grid-template-columns: repeat(8, 40px);
+        grid-template-rows: repeat(8, 40px);
+    }
+    
+    .square {
+        font-size: 30px;
+    }
+    
+    h1 {
+        font-size: 2em;
+    }
+}
+
+@media (max-width: 480px) {
+    #board {
+        grid-template-columns: repeat(8, 35px);
+        grid-template-rows: repeat(8, 35px);
+    }
+    
+    .square {
+        font-size: 25px;
+    }
+    
+    .game-info {
+        flex-direction: column;
+        gap: 10px;
+    }
 }
