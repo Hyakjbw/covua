@@ -1,9 +1,7 @@
-// Khởi tạo bàn cờ 8x8
 const boardEl = document.getElementById("board");
 const moveListEl = document.getElementById("movelist");
 let selectedSquare = null;
 
-// Tạo bàn cờ
 function createBoard() {
   boardEl.innerHTML = "";
   for (let row = 0; row < 8; row++) {
@@ -19,7 +17,6 @@ function createBoard() {
   }
 }
 
-// Giả lập quân cờ tạm (demo)
 function setupPieces() {
   const initial = [
     "♜","♞","♝","♛","♚","♝","♞","♜",
@@ -60,6 +57,8 @@ function movePiece(from, to) {
   moveListEl.appendChild(li);
 }
 
-// Bắt đầu
-createBoard();
-setupPieces();
+// Gọi hàm khi trang tải xong
+window.addEventListener("DOMContentLoaded", () => {
+  createBoard();
+  setupPieces();
+});
