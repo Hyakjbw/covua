@@ -1,49 +1,37 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Chess - Strong JS Bot</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cờ vua - Bot mạnh bằng JS</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Chess (Bot mạnh bằng JS)</h1>
+      <h1>Cờ vua (Bot mạnh bằng JS)</h1>
       <div class="controls">
-        <label>Bot depth:
+        <label>Độ khó Bot:
           <select id="botDepth">
-            <option value="2">2 (fast)</option>
+            <option value="2">2</option>
             <option value="3">3</option>
-            <option value="4" selected>4 (balanced)</option>
-            <option value="5">5 (slow/strong)</option>
+            <option value="4" selected>4</option>
+            <option value="5">5</option>
           </select>
         </label>
-        <button id="newGame">New Game</button>
-        <button id="undoBtn">Undo</button>
+        <button id="newGame">Ván mới</button>
+        <button id="undoBtn">Hoàn tác</button>
         <span id="status"></span>
       </div>
     </header>
 
     <main>
       <div id="board" class="board"></div>
-
       <aside class="sidebar">
-        <h3>Moves</h3>
-        <ol id="movelist" class="movelist"></ol>
-
-        <h3>Tips</h3>
-        <ul>
-          <li>Click a piece to select, then click destination.</li>
-          <li>Change Bot depth to tune strength / speed.</li>
-          <li>For top-tier strength integrate Stockfish (can show how).</li>
-        </ul>
+        <h3>Lịch sử nước đi</h3>
+        <ol id="movelist"></ol>
       </aside>
     </main>
-
-    <footer>
-      <small>Made for GitHub Pages — place these 3 files in repo and enable Pages (branch: main) — enjoy!</small>
-    </footer>
   </div>
 
   <script src="script.js"></script>
