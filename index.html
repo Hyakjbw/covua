@@ -1,66 +1,51 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cờ Vua với AI </title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chess - Strong JS Bot</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div class="container">
     <header>
-        <h1>Cờ Vua với AI </h1>
-        <p class="subtitle">Thách thức trí tuệ nhân tạo</p>
+      <h1>Chess (Bot mạnh bằng JS)</h1>
+      <div class="controls">
+        <label>Bot depth:
+          <select id="botDepth">
+            <option value="2">2 (fast)</option>
+            <option value="3">3</option>
+            <option value="4" selected>4 (balanced)</option>
+            <option value="5">5 (slow/strong)</option>
+          </select>
+        </label>
+        <button id="newGame">New Game</button>
+        <button id="undoBtn">Undo</button>
+        <span id="status"></span>
+      </div>
     </header>
-    
-    <div class="container">
-        <div class="game-section">
-            <div class="board-container">
-                <div class="board" id="chessboard">
-                    <!-- Bàn cờ sẽ được tạo bằng JavaScript -->
-                </div>
-            </div>
-            
-            <div class="controls">
-                <button id="newGame">Ván Mới</button>
-                <button id="undoMove">Hoàn tác</button>
-                <button id="hint">Gợi ý</button>
-            </div>
-        </div>
-        
-        <div class="info-section">
-            <div class="status" id="gameStatus">Lượt của bạn</div>
-            
-            <div class="player-info active" id="playerInfo">
-                <span>Người chơi (Trắng)</span>
-                <div class="captured-pieces" id="playerCaptured"></div>
-            </div>
-            
-            <div class="player-info" id="aiInfo">
-                <span>AI (Đen)</span>
-                <div class="captured-pieces" id="aiCaptured"></div>
-            </div>
-            
-            <div class="difficulty-selector">
-                <label for="difficulty">Độ khó AI:</label>
-                <select id="difficulty">
-                    <option value="2">Dễ</option>
-                    <option value="3" selected>Trung bình</option>
-                    <option value="4">Khó</option>
-                    <option value="5">Rất khó</option>
-                </select>
-            </div>
-            
-            <div class="move-history">
-                <h3>Lịch sử nước đi</h3>
-                <div class="moves" id="moveHistory"></div>
-            </div>
-        </div>
-    </div>
-    
-    <footer>
-        <p> Tạo bởi Nguyễn Hải Huy</p>
-    </footer>
 
-    <script src="script.js"></script>
+    <main>
+      <div id="board" class="board"></div>
+
+      <aside class="sidebar">
+        <h3>Moves</h3>
+        <ol id="movelist" class="movelist"></ol>
+
+        <h3>Tips</h3>
+        <ul>
+          <li>Click a piece to select, then click destination.</li>
+          <li>Change Bot depth to tune strength / speed.</li>
+          <li>For top-tier strength integrate Stockfish (can show how).</li>
+        </ul>
+      </aside>
+    </main>
+
+    <footer>
+      <small>Made for GitHub Pages — place these 3 files in repo and enable Pages (branch: main) — enjoy!</small>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>
