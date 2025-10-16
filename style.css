@@ -1,92 +1,89 @@
-:root{
-  --light:#f0d9b5;
-  --dark:#b58863;
-  --accent:#2b90d9;
-  --bg:#0f1720;
-  --panel:#111827;
-  --glass: rgba(255,255,255,0.05);
+/* Nền tổng thể */
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: #0f172a;
+  color: #fff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
 }
 
-*{box-sizing:border-box}
-html,body{height:100%}
-body{
-  margin:0;
-  font-family:system-ui, -apple-system, Roboto, "Segoe UI", "Helvetica Neue", Arial;
-  background: linear-gradient(180deg,var(--bg), #061121);
-  color: #e6eef6;
-  padding:20px;
+/* Bố cục chính */
+.container {
+  max-width: 1100px;
+  width: 95%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.container{
-  max-width:1100px;
-  margin:0 auto;
-  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-  border-radius:12px;
-  padding:18px;
-  box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+/* Header */
+header {
+  text-align: center;
+  margin-bottom: 20px;
 }
 
-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-header h1{font-size:20px;margin:0}
-.controls{display:flex;align-items:center;gap:10px}
-.controls select, .controls button{padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:var(--panel);color:inherit}
-#status{margin-left:8px;font-weight:600}
-
-main{display:flex;gap:18px}
-.board{
-  width:640px;
-  height:640px;
-  display:grid;
-  grid-template-columns: repeat(8,1fr);
-  grid-template-rows: repeat(8,1fr);
-  border-radius:8px;
-  overflow:hidden;
-  box-shadow: 0 8px 20px rgba(2,6,23,0.6);
-  user-select:none;
-  touch-action:none;
+/* Bố trí phần main */
+main {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 40px;
 }
 
-.square{
-  width:100%;
-  height:100%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:44px;
-  cursor:pointer;
-  position:relative;
+/* Bàn cờ */
+.board {
+  display: grid;
+  grid-template-columns: repeat(8, 70px);
+  grid-template-rows: repeat(8, 70px);
+  border: 3px solid #ffffff33;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 15px #0008;
 }
 
-.square.light{background:var(--light); color:#222;}
-.square.dark{background:var(--dark); color:#fff;}
-
-.square .hint{
-  position:absolute;
-  width:30%;
-  height:30%;
-  border-radius:50%;
-  background:rgba(46, 204, 113,0.85);
-  opacity:0.9;
+/* Ô cờ */
+.square {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 38px;
+  cursor: pointer;
 }
 
-.square.selected{outline:4px solid rgba(43,144,217,0.55); z-index:3}
-.square.captureHint::after{
-  content:"";
-  position:absolute;
-  inset:12%;
-  border-radius:8px;
-  background:rgba(255,0,0,0.12);
-  box-shadow: inset 0 0 0 2px rgba(255,0,0,0.16);
+.light {
+  background: #f0d9b5;
 }
 
-.sidebar{
-  width:360px;
-  background:var(--panel);
-  padding:12px;
-  border-radius:8px;
-  height:640px;
-  overflow:auto;
+.dark {
+  background: #b58863;
 }
 
-.movelist{padding-left:18px;margin-top:0}
-footer{margin-top:12px;text-align:center;color:rgba(255,255,255,0.6)}
+/* Sidebar */
+.sidebar {
+  width: 200px;
+}
+
+.sidebar h3 {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+#movelist {
+  font-size: 14px;
+  padding-left: 20px;
+}
+
+/* Responsive */
+@media (max-width: 800px) {
+  main {
+    flex-direction: column;
+    align-items: center;
+  }
+  .board {
+    grid-template-columns: repeat(8, 45px);
+    grid-template-rows: repeat(8, 45px);
+  }
+}
