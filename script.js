@@ -1,93 +1,4 @@
-const boardEl = document.getElementById("board");
-const currentPlayerEl = document.getElementById("current-player");
-let selectedSquare = null;
-let currentPlayer = 'white';
-let gameState = Array(8).fill().map(() => Array(8).fill(null));
-let validMoves = [];
-
-// Giá trị quân cờ
-const PIECE_VALUES = {
-    'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 20000,
-    'P': -100, 'N': -320, 'B': -330, 'R': -500, 'Q': -900, 'K': -20000
-};
-
-// Bảng điểm vị trí cho các quân cờ
-const POSITION_WEIGHTS = {
-    'p': [
-        [0, 0, 0, 0, 0, 0, 0, 0],
-        [50, 50, 50, 50, 50, 50, 50, 50],
-        [10, 10, 20, 30, 30, 20, 10, 10],
-        [5, 5, 10, 25, 25, 10, 5, 5],
-        [0, 0, 0, 20, 20, 0, 0, 0],
-        [5, -5, -10, 0, 0, -10, -5, 5],
-        [5, 10, 10, -20, -20, 10, 10, 5],
-        [0, 0, 0, 0, 0, 0, 0, 0]
-    ],
-    'n': [
-        [-50, -40, -30, -30, -30, -30, -40, -50],
-        [-40, -20, 0, 0, 0, 0, -20, -40],
-        [-30, 0, 10, 15, 15, 10, 0, -30],
-        [-30, 5, 15, 20, 20, 15, 5, -30],
-        [-30, 0, 15, 20, 20, 15, 0, -30],
-        [-30, 5, 10, 15, 15, 10, 5, -30],
-        [-40, -20, 0, 5, 5, 0, -20, -40],
-        [-50, -40, -30, -30, -30, -30, -40, -50]
-    ]
-};
-
-function createBoard() {
-    boardEl.innerHTML = "";
-    for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-            const square = document.createElement("div");
-            square.classList.add("square");
-            (row + col) % 2 === 0 ? square.classList.add("light") : square.classList.add("dark");
-            square.dataset.row = row;
-            square.dataset.col = col;
-            square.addEventListener("click", () => onSquareClick(square));
-            boardEl.appendChild(square);
-        }
-    }
-}
-
-function setupPieces() {
-    // Khởi tạo bàn cờ với ký hiệu Unicode
-    const initial = [
-        "♜", "♞", "♝", "♛", "♚", "♝", "♞", "♜",
-        "♟", "♟", "♟", "♟", "♟", "♟", "♟", "♟",
-        "", "", "", "", "", "", "", "",
-        "", "", "", "", "", "", "", "",
-        "", "", "", "", "", "", "", "",
-        "", "", "", "", "", "", "", "",
-        "♙", "♙", "♙", "♙", "♙", "♙", "♙", "♙",
-        "♖", "♘", "♗", "♕", "♔", "♗", "♘", "♖"
-    ];
-    
-    const squares = document.querySelectorAll(".square");
-    for (let i = 0; i < 64; i++) {
-        const row = Math.floor(i / 8);
-        const col = i % 8;
-        squares[i].textContent = initial[i];
-        gameState[row][col] = getPieceCode(initial[i]);
-    }
-}
-
-function getPieceCode(piece) {
-    const pieceMap = {
-        '♙': 'P', '♘': 'N', '♗': 'B', '♖': 'R', '♕': 'Q', '♔': 'K',
-        '♟': 'p', '♞': 'n', '♝': 'b', '♜': 'r', '♛': 'q', '♚': 'k'
-    };
-    return pieceMap[piece] || null;
-}
-
-function getPieceSymbol(code) {
-    const symbolMap = {
-        'P': '♙', 'N': '♘', 'B': '♗', 'R': '♖', 'Q': '♕', 'K': '♔',
-        'p': '♟', 'n': '♞', 'b': '♝', 'r': '♜', 'q': '♛', 'k': '♚'
-    };
-    return symbolMap[code] || '';
-}
-
+// Sửa hàm onSquareClick để fix lỗi quân trắng tự ăn
 function onSquareClick(square) {
     if (currentPlayer !== 'white') return;
     
@@ -96,8 +7,8 @@ function onSquareClick(square) {
     const piece = gameState[row][col];
     
     if (!selectedSquare) {
-        // Chọn quân cờ
-        if (piece && piece === piece.toUpperCase()) { // Chỉ chọn quân trắng
+        // Chọn quân cờ - chỉ chọn quân trắng và không cho phép chọn ô trống
+        if (piece && piece === piece.toUpperCase()) {
             selectedSquare = square;
             square.classList.add('selected');
             validMoves = getValidMoves(row, col, gameState);
@@ -117,8 +28,8 @@ function onSquareClick(square) {
             currentPlayer = 'black';
             updateTurnIndicator();
             
-            // AI thực hiện nước đi sau 600ms
-            setTimeout(makeAIMove, 600);
+            // AI thực hiện nước đi ngay lập tức
+            setTimeout(makeAIMove, 100);
         }
         
         clearHighlights();
@@ -128,6 +39,7 @@ function onSquareClick(square) {
     }
 }
 
+// Sửa hàm getValidMoves để ngăn quân trắng ăn quân trắng
 function getValidMoves(row, col, board) {
     const piece = board[row][col];
     if (!piece) return [];
@@ -145,18 +57,25 @@ function getValidMoves(row, col, board) {
                 moves.push({toRow: row + direction, toCol: col, type: 'move'});
                 
                 // Di chuyển 2 ô từ vị trí ban đầu
-                if (row === startRow && !board[row + 2 * direction][col]) {
+                if (row === startRow && isValidPosition(row + 2 * direction, col) && 
+                    !board[row + 2 * direction][col]) {
                     moves.push({toRow: row + 2 * direction, toCol: col, type: 'move'});
                 }
             }
             
-            // Ăn chéo
+            // Ăn chéo - CHỈ ăn quân đen
             for (let dc of [-1, 1]) {
                 if (isValidPosition(row + direction, col + dc)) {
                     const target = board[row + direction][col + dc];
-                    if (target && ((isWhite && target === target.toLowerCase()) || 
-                                  (!isWhite && target === target.toUpperCase()))) {
-                        moves.push({toRow: row + direction, toCol: col + dc, type: 'capture'});
+                    if (target) {
+                        // Quân trắng chỉ được ăn quân đen (chữ thường)
+                        if (isWhite && target === target.toLowerCase()) {
+                            moves.push({toRow: row + direction, toCol: col + dc, type: 'capture'});
+                        }
+                        // Quân đen chỉ được ăn quân trắng (chữ hoa)
+                        if (!isWhite && target === target.toUpperCase()) {
+                            moves.push({toRow: row + direction, toCol: col + dc, type: 'capture'});
+                        }
                     }
                 }
             }
@@ -178,9 +97,12 @@ function getValidMoves(row, col, board) {
                     const target = board[newRow][newCol];
                     if (!target) {
                         moves.push({toRow: newRow, toCol: newCol, type: 'move'});
-                    } else if ((isWhite && target === target.toLowerCase()) || 
-                              (!isWhite && target === target.toUpperCase())) {
-                        moves.push({toRow: newRow, toCol: newCol, type: 'capture'});
+                    } else {
+                        // Chỉ ăn quân đối phương
+                        if ((isWhite && target === target.toLowerCase()) || 
+                            (!isWhite && target === target.toUpperCase())) {
+                            moves.push({toRow: newRow, toCol: newCol, type: 'capture'});
+                        }
                     }
                 }
             }
@@ -208,9 +130,12 @@ function getValidMoves(row, col, board) {
                     const target = board[newRow][newCol];
                     if (!target) {
                         moves.push({toRow: newRow, toCol: newCol, type: 'move'});
-                    } else if ((isWhite && target === target.toLowerCase()) || 
-                              (!isWhite && target === target.toUpperCase())) {
-                        moves.push({toRow: newRow, toCol: newCol, type: 'capture'});
+                    } else {
+                        // Chỉ ăn quân đối phương
+                        if ((isWhite && target === target.toLowerCase()) || 
+                            (!isWhite && target === target.toUpperCase())) {
+                            moves.push({toRow: newRow, toCol: newCol, type: 'capture'});
+                        }
                     }
                 }
             }
@@ -220,6 +145,7 @@ function getValidMoves(row, col, board) {
     return moves;
 }
 
+// Sửa hàm addStraightMoves và addDiagonalMoves để ngăn ăn quân cùng màu
 function addStraightMoves(row, col, board, moves, isWhite) {
     const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
     for (let [dr, dc] of directions) {
@@ -229,6 +155,7 @@ function addStraightMoves(row, col, board, moves, isWhite) {
             if (!target) {
                 moves.push({toRow: r, toCol: c, type: 'move'});
             } else {
+                // Chỉ ăn quân đối phương
                 if ((isWhite && target === target.toLowerCase()) || 
                     (!isWhite && target === target.toUpperCase())) {
                     moves.push({toRow: r, toCol: c, type: 'capture'});
@@ -250,6 +177,7 @@ function addDiagonalMoves(row, col, board, moves, isWhite) {
             if (!target) {
                 moves.push({toRow: r, toCol: c, type: 'move'});
             } else {
+                // Chỉ ăn quân đối phương
                 if ((isWhite && target === target.toLowerCase()) || 
                     (!isWhite && target === target.toUpperCase())) {
                     moves.push({toRow: r, toCol: c, type: 'capture'});
@@ -262,62 +190,47 @@ function addDiagonalMoves(row, col, board, moves, isWhite) {
     }
 }
 
-function isValidPosition(row, col) {
-    return row >= 0 && row < 8 && col >= 0 && col < 8;
-}
-
-function highlightValidMoves(moves) {
-    moves.forEach(move => {
-        const square = document.querySelector(`.square[data-row="${move.toRow}"][data-col="${move.toCol}"]`);
-        if (square) {
-            square.classList.add(move.type === 'capture' ? 'valid-capture' : 'valid-move');
-        }
-    });
-}
-
-function clearHighlights() {
-    document.querySelectorAll('.square').forEach(square => {
-        square.classList.remove('valid-move', 'valid-capture');
-    });
-}
-
-function makeMove(fromRow, fromCol, toRow, toCol) {
-    const piece = gameState[fromRow][fromCol];
-    gameState[toRow][toCol] = piece;
-    gameState[fromRow][fromCol] = null;
-    
-    updateBoardDisplay();
-}
-
-function updateBoardDisplay() {
-    const squares = document.querySelectorAll(".square");
-    for (let i = 0; i < 64; i++) {
-        const row = Math.floor(i / 8);
-        const col = i % 8;
-        squares[i].textContent = getPieceSymbol(gameState[row][col]);
-    }
-}
-
-function updateTurnIndicator() {
-    currentPlayerEl.textContent = currentPlayer === 'white' ? 'Trắng' : 'Đen (AI)';
-    currentPlayerEl.style.color = currentPlayer === 'white' ? '#2c3e50' : '#e74c3c';
-}
-
-// AI sử dụng thuật toán Minimax với Alpha-Beta Pruning
+// Sửa hàm makeAIMove để đảm bảo AI luôn tìm được nước đi
 function makeAIMove() {
-    const bestMove = findBestMove(gameState, 3); // Độ sâu 3
+    console.log("AI is thinking...");
+    
+    const moves = getAllValidMoves(gameState, 'black');
+    console.log("Available moves for AI:", moves.length);
+    
+    if (moves.length === 0) {
+        console.log("No moves available for AI");
+        currentPlayer = 'white';
+        updateTurnIndicator();
+        return;
+    }
+    
+    const bestMove = findBestMove(gameState, 3);
+    
     if (bestMove) {
+        console.log("AI making move:", bestMove);
         makeMove(bestMove.fromRow, bestMove.fromCol, bestMove.toRow, bestMove.toCol);
+        currentPlayer = 'white';
+        updateTurnIndicator();
+    } else {
+        // Nếu không tìm được nước đi tốt nhất, chọn nước đi đầu tiên
+        console.log("Using first available move");
+        const firstMove = moves[0];
+        makeMove(firstMove.fromRow, firstMove.fromCol, firstMove.toRow, firstMove.toCol);
         currentPlayer = 'white';
         updateTurnIndicator();
     }
 }
 
+// Sửa hàm findBestMove để xử lý trường hợp không có nước đi
 function findBestMove(board, depth) {
     let bestScore = -Infinity;
     let bestMove = null;
     
     const moves = getAllValidMoves(board, 'black');
+    
+    if (moves.length === 0) {
+        return null;
+    }
     
     // Sắp xếp các nước đi để tối ưu alpha-beta pruning
     moves.sort((a, b) => {
@@ -342,42 +255,23 @@ function findBestMove(board, depth) {
     return bestMove;
 }
 
-function minimax(board, depth, alpha, beta, isMaximizing) {
-    if (depth === 0) {
-        return evaluateBoard(board);
+// Sửa hàm makeMove để log ra thông tin
+function makeMove(fromRow, fromCol, toRow, toCol) {
+    const piece = gameState[fromRow][fromCol];
+    const capturedPiece = gameState[toRow][toCol];
+    
+    console.log(`Move: ${getPieceSymbol(piece)} from (${fromRow},${fromCol}) to (${toRow},${toCol})`);
+    if (capturedPiece) {
+        console.log(`Captured: ${getPieceSymbol(capturedPiece)}`);
     }
     
-    const moves = getAllValidMoves(board, isMaximizing ? 'black' : 'white');
+    gameState[toRow][toCol] = piece;
+    gameState[fromRow][fromCol] = null;
     
-    if (isMaximizing) {
-        let maxScore = -Infinity;
-        for (let move of moves) {
-            const newBoard = cloneBoard(board);
-            newBoard[move.toRow][move.toCol] = newBoard[move.fromRow][move.fromCol];
-            newBoard[move.fromRow][move.fromCol] = null;
-            
-            const score = minimax(newBoard, depth - 1, alpha, beta, false);
-            maxScore = Math.max(maxScore, score);
-            alpha = Math.max(alpha, score);
-            if (beta <= alpha) break;
-        }
-        return maxScore;
-    } else {
-        let minScore = Infinity;
-        for (let move of moves) {
-            const newBoard = cloneBoard(board);
-            newBoard[move.toRow][move.toCol] = newBoard[move.fromRow][move.fromCol];
-            newBoard[move.fromRow][move.fromCol] = null;
-            
-            const score = minimax(newBoard, depth - 1, alpha, beta, true);
-            minScore = Math.min(minScore, score);
-            beta = Math.min(beta, score);
-            if (beta <= alpha) break;
-        }
-        return minScore;
-    }
+    updateBoardDisplay();
 }
 
+// Đảm bảo hàm getAllValidMoves hoạt động chính xác
 function getAllValidMoves(board, player) {
     const moves = [];
     const isBlack = player === 'black';
@@ -385,16 +279,21 @@ function getAllValidMoves(board, player) {
     for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
             const piece = board[row][col];
-            if (piece && ((isBlack && piece === piece.toLowerCase()) || 
-                         (!isBlack && piece === piece.toUpperCase()))) {
-                const pieceMoves = getValidMoves(row, col, board);
-                for (let move of pieceMoves) {
-                    moves.push({
-                        fromRow: row,
-                        fromCol: col,
-                        toRow: move.toRow,
-                        toCol: move.toCol
-                    });
+            if (piece) {
+                // Quân đen (chữ thường) hoặc quân trắng (chữ hoa)
+                const isPieceOfPlayer = (isBlack && piece === piece.toLowerCase()) || 
+                                      (!isBlack && piece === piece.toUpperCase());
+                
+                if (isPieceOfPlayer) {
+                    const pieceMoves = getValidMoves(row, col, board);
+                    for (let move of pieceMoves) {
+                        moves.push({
+                            fromRow: row,
+                            fromCol: col,
+                            toRow: move.toRow,
+                            toCol: move.toCol
+                        });
+                    }
                 }
             }
         }
@@ -402,73 +301,3 @@ function getAllValidMoves(board, player) {
     
     return moves;
 }
-
-function evaluateMove(move, board) {
-    const piece = board[move.fromRow][move.fromCol];
-    const target = board[move.toRow][move.toCol];
-    
-    let score = 0;
-    
-    // Ưu tiên ăn quân
-    if (target) {
-        score += Math.abs(PIECE_VALUES[target]) * 10;
-    }
-    
-    // Ưu tiên di chuyển quân giá trị thấp
-    score -= Math.abs(PIECE_VALUES[piece]) * 0.1;
-    
-    return score;
-}
-
-function evaluateBoard(board) {
-    let score = 0;
-    
-    for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-            const piece = board[row][col];
-            if (piece) {
-                // Giá trị cơ bản của quân cờ
-                score += PIECE_VALUES[piece];
-                
-                // Điểm vị trí
-                const pieceType = piece.toLowerCase();
-                if (POSITION_WEIGHTS[pieceType]) {
-                    const weight = piece === pieceType ? 
-                        POSITION_WEIGHTS[pieceType][row][col] : 
-                        -POSITION_WEIGHTS[pieceType][7 - row][col];
-                    score += weight;
-                }
-                
-                // Thưởng điểm cho tốt tiến lên
-                if (pieceType === 'p') {
-                    if (piece === 'p') score += (7 - row) * 5; // Tốt đen
-                    else score -= row * 5; // Tốt trắng
-                }
-            }
-        }
-    }
-    
-    return score;
-}
-
-function cloneBoard(board) {
-    return board.map(row => [...row]);
-}
-
-function resetGame() {
-    gameState = Array(8).fill().map(() => Array(8).fill(null));
-    currentPlayer = 'white';
-    selectedSquare = null;
-    validMoves = [];
-    clearHighlights();
-    createBoard();
-    setupPieces();
-    updateTurnIndicator();
-}
-
-// Khởi tạo game
-window.addEventListener("DOMContentLoaded", () => {
-    createBoard();
-    setupPieces();
-    updateTurnIndicator();
-});
