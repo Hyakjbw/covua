@@ -409,4 +409,405 @@ class ChessBoard {
         }
 
         // Thêm điểm cho việc kiểm soát trung tâm
-        const centerSquares = [[3, 3], [3, 4],
+        const centerSquares = [[3, 3], [3, 4], [4, 3], [4, 4]];
+        for (const [row, col] of centerSquares) {
+            const piece = this.getPiece(row, col);
+            if (piece) {
+                score += piece.color === COLORS.WHITE ? 1 : -1;
+            }
+        }
+
+        return score;
+    }
+}
+
+// Lớp AI sử dụng thuật toán Minimax với cắt tỉa Alpha-Beta
+class ChessAI {
+    constructor(difficulty = 3) {
+        this.difficulty = difficulty;
+    }
+
+    setDifficulty(difficulty) {
+        this.difficulty = difficulty;
+    }
+
+    getBestMove(board) {
+        const startTime = Date.now();
+        let bestMove = null;
+        let bestValue = -Infinity;
+        const alpha = -Infinity;
+        const beta = Infinity;
+
+        // Lấy tất cả các nước đi có thể
+        const moves = this.getAllPossibleMoves(board, COLORS.BLACK);
+
+        // Sắp xếp các nước đi để tối ưu hóa cắt tỉa alpha-beta
+        moves.sort((a, b) => {
+            // Ưu tiên các nước đi ăn quân
+            const aCapture = board.getPiece(a.to.row, a.to.col) ? 1 : 0;
+            const bCapture = board.getPiece(b.to.row, b.to.col) ? 1 : 0;
+            return bCapture - aCapture;
+        });
+
+        for (const move of moves) {
+            const testBoard = board.clone();
+            testBoard.movePiece(move.from.row, move.from.col, move.to.row, move.to.col);
+
+            // Kiểm tra nếu nước đi này dẫn đến chiếu tướng cho AI
+            if (testBoard.isCheck(COLORS.BLACK)) {
+                continue;
+            }
+
+            const value = this.minimax(testBoard, this.difficulty - 1, alpha, beta, false);
+
+            if (value > bestValue) {
+                bestValue = value;
+                bestMove = move;
+            }
+        }
+
+        const endTime = Date.now();
+        console.log(`AI took ${endTime - startTime}ms to make a move with depth ${this.difficulty}`);
+
+        return bestMove;
+    }
+
+    minimax(board, depth, alpha, beta, maximizingPlayer) {
+        if (depth === 0 || board.isCheckmate(COLORS.WHITE) || board.isCheckmate(COLORS.BLACK)) {
+            return board.evaluate();
+        }
+
+        if (maximizingPlayer) {
+            let maxEval = -Infinity;
+            const moves = this.getAllPossibleMoves(board, COLORS.BLACK);
+
+            for (const move of moves) {
+                const testBoard = board.clone();
+                testBoard.movePiece(move.from.row, move.from.col, move.to.row, move.to.col);
+                
+                // Bỏ qua các nước đi dẫn đến chiếu tướng
+                if (testBoard.isCheck(COLORS.BLACK)) {
+                    continue;
+                }
+                
+                const eval = this.minimax(testBoard, depth - 1, alpha, beta, false);
+                maxEval = Math.max(maxEval, eval);
+                alpha = Math.max(alpha, eval);
+                if (beta <= alpha) break;
+            }
+            return maxEval;
+        } else {
+            let minEval = Infinity;
+            const moves = this.getAllPossibleMoves(board, COLORS.WHITE);
+
+            for (const move of moves) {
+                const testBoard = board.clone();
+                testBoard.movePiece(move.from.row, move.from.col, move.to.row, move.to.col);
+                
+                // Bỏ qua các nước đi dẫn đến chiếu tướng
+                if (testBoard.isCheck(COLORS.WHITE)) {
+                    continue;
+                }
+                
+                const eval = this.minimax(testBoard, depth - 1, alpha, beta, true);
+                minEval = Math.min(minEval, eval);
+                beta = Math.min(beta, eval);
+                if (beta <= alpha) break;
+            }
+            return minEval;
+        }
+    }
+
+    getAllPossibleMoves(board, color) {
+        const moves = [];
+
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const piece = board.getPiece(row, col);
+                if (piece && piece.color === color) {
+                    const validMoves = board.calculateValidMoves(row, col);
+                    for (const move of validMoves) {
+                        moves.push({
+                            from: { row, col },
+                            to: { row: move.row, col: move.col }
+                        });
+                    }
+                }
+            }
+        }
+
+        return moves;
+    }
+
+    getHint(board) {
+        // Tìm nước đi tốt nhất cho người chơi
+        const moves = this.getAllPossibleMoves(board, COLORS.WHITE);
+        let bestMove = null;
+        let bestValue = -Infinity;
+
+        for (const move of moves) {
+            const testBoard = board.clone();
+            testBoard.movePiece(move.from.row, move.from.col, move.to.row, move.to.col);
+            
+            // Bỏ qua các nước đi dẫn đến chiếu tướng
+            if (testBoard.isCheck(COLORS.WHITE)) {
+                continue;
+            }
+            
+            const value = testBoard.evaluate();
+            if (value > bestValue) {
+                bestValue = value;
+                bestMove = move;
+            }
+        }
+
+        return bestMove;
+    }
+}
+
+// Lớp quản lý giao diện người dùng
+class ChessUI {
+    constructor() {
+        this.board = new ChessBoard();
+        this.ai = new ChessAI(3);
+        this.chessboardElement = document.getElementById('chessboard');
+        this.gameStatusElement = document.getElementById('gameStatus');
+        this.playerCapturedElement = document.getElementById('playerCaptured');
+        this.aiCapturedElement = document.getElementById('aiCaptured');
+        this.moveHistoryElement = document.getElementById('moveHistory');
+        this.playerInfoElement = document.getElementById('playerInfo');
+        this.aiInfoElement = document.getElementById('aiInfo');
+        this.difficultySelect = document.getElementById('difficulty');
+        
+        this.initializeEventListeners();
+        this.renderBoard();
+        this.updateUI();
+    }
+
+    initializeEventListeners() {
+        // Nút bắt đầu ván mới
+        document.getElementById('newGame').addEventListener('click', () => {
+            this.board = new ChessBoard();
+            this.renderBoard();
+            this.updateUI();
+        });
+
+        // Nút hoàn tác
+        document.getElementById('undoMove').addEventListener('click', () => {
+            if (this.board.undoMove()) {
+                this.renderBoard();
+                this.updateUI();
+            }
+        });
+
+        // Nút gợi ý
+        document.getElementById('hint').addEventListener('click', () => {
+            this.showHint();
+        });
+
+        // Thay đổi độ khó
+        this.difficultySelect.addEventListener('change', () => {
+            this.ai.setDifficulty(parseInt(this.difficultySelect.value));
+        });
+    }
+
+    renderBoard() {
+        this.chessboardElement.innerHTML = '';
+
+        for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+                const square = document.createElement('div');
+                square.className = `square ${(row + col) % 2 === 0 ? 'white' : 'black'}`;
+                square.dataset.row = row;
+                square.dataset.col = col;
+
+                // Đánh dấu ô được chọn
+                if (this.board.selectedPiece && 
+                    this.board.selectedPiece.row === row && 
+                    this.board.selectedPiece.col === col) {
+                    square.classList.add('selected');
+                }
+
+                // Đánh dấu các nước đi hợp lệ
+                const isValidMove = this.board.validMoves.some(move => 
+                    move.row === row && move.col === col
+                );
+                
+                if (isValidMove) {
+                    const targetPiece = this.board.getPiece(row, col);
+                    if (targetPiece) {
+                        square.classList.add('valid-capture');
+                    } else {
+                        square.classList.add('valid-move');
+                    }
+                }
+
+                // Thêm quân cờ nếu có
+                const piece = this.board.getPiece(row, col);
+                if (piece) {
+                    square.textContent = piece.getSymbol();
+                }
+
+                square.addEventListener('click', () => this.handleSquareClick(row, col));
+                this.chessboardElement.appendChild(square);
+            }
+        }
+    }
+
+    handleSquareClick(row, col) {
+        // Nếu đang là lượt của AI, bỏ qua
+        if (this.board.currentPlayer === COLORS.BLACK) return;
+
+        const piece = this.board.getPiece(row, col);
+
+        // Nếu đã chọn một quân cờ và click vào ô hợp lệ
+        if (this.board.selectedPiece) {
+            const moveSuccess = this.board.movePiece(
+                this.board.selectedPiece.row, 
+                this.board.selectedPiece.col, 
+                row, 
+                col
+            );
+
+            if (moveSuccess) {
+                this.renderBoard();
+                this.updateUI();
+
+                // Kiểm tra kết thúc trò chơi
+                if (this.board.isCheckmate(COLORS.BLACK)) {
+                    this.gameStatusElement.textContent = 'Bạn thắng!';
+                    return;
+                }
+
+                // Đến lượt AI
+                setTimeout(() => this.makeAIMove(), 500);
+            } else if (piece && piece.color === COLORS.WHITE) {
+                // Chọn quân cờ mới
+                this.board.selectPiece(row, col);
+                this.renderBoard();
+            } else {
+                // Bỏ chọn
+                this.board.selectedPiece = null;
+                this.board.validMoves = [];
+                this.renderBoard();
+            }
+        } else if (piece && piece.color === COLORS.WHITE) {
+            // Chọn quân cờ
+            this.board.selectPiece(row, col);
+            this.renderBoard();
+        }
+    }
+
+    makeAIMove() {
+        if (this.board.currentPlayer === COLORS.BLACK && !this.board.isCheckmate(COLORS.WHITE)) {
+            const bestMove = this.ai.getBestMove(this.board);
+            
+            if (bestMove) {
+                this.board.movePiece(
+                    bestMove.from.row,
+                    bestMove.from.col,
+                    bestMove.to.row,
+                    bestMove.to.col
+                );
+                
+                this.renderBoard();
+                this.updateUI();
+
+                // Kiểm tra kết thúc trò chơi
+                if (this.board.isCheckmate(COLORS.WHITE)) {
+                    this.gameStatusElement.textContent = 'AI thắng!';
+                }
+            }
+        }
+    }
+
+    showHint() {
+        if (this.board.currentPlayer === COLORS.WHITE) {
+            const hint = this.ai.getHint(this.board);
+            if (hint) {
+                // Làm nổi bật nước đi gợi ý
+                this.board.selectedPiece = {
+                    row: hint.from.row,
+                    col: hint.from.col,
+                    piece: this.board.getPiece(hint.from.row, hint.from.col)
+                };
+                this.board.validMoves = [{ row: hint.to.row, col: hint.to.col, capture: false }];
+                this.renderBoard();
+                
+                // Tự động bỏ chọn sau 2 giây
+                setTimeout(() => {
+                    this.board.selectedPiece = null;
+                    this.board.validMoves = [];
+                    this.renderBoard();
+                }, 2000);
+            }
+        }
+    }
+
+    updateUI() {
+        // Cập nhật trạng thái trò chơi
+        if (this.board.isCheckmate(COLORS.WHITE)) {
+            this.gameStatusElement.textContent = 'AI thắng!';
+        } else if (this.board.isCheckmate(COLORS.BLACK)) {
+            this.gameStatusElement.textContent = 'Bạn thắng!';
+        } else if (this.board.isCheck(COLORS.WHITE)) {
+            this.gameStatusElement.textContent = 'Bạn đang bị chiếu!';
+        } else if (this.board.isCheck(COLORS.BLACK)) {
+            this.gameStatusElement.textContent = 'AI đang bị chiếu!';
+        } else {
+            this.gameStatusElement.textContent = this.board.currentPlayer === COLORS.WHITE 
+                ? 'Lượt của bạn' 
+                : 'AI đang suy nghĩ...';
+        }
+
+        // Cập nhật thông tin người chơi
+        if (this.board.currentPlayer === COLORS.WHITE) {
+            this.playerInfoElement.classList.add('active');
+            this.aiInfoElement.classList.remove('active');
+        } else {
+            this.playerInfoElement.classList.remove('active');
+            this.aiInfoElement.classList.add('active');
+        }
+
+        // Cập nhật quân bị bắt
+        this.playerCapturedElement.innerHTML = '';
+        this.board.capturedPieces[COLORS.WHITE].forEach(piece => {
+            const capturedPiece = document.createElement('span');
+            capturedPiece.className = 'captured-piece';
+            capturedPiece.textContent = piece.getSymbol();
+            this.playerCapturedElement.appendChild(capturedPiece);
+        });
+
+        this.aiCapturedElement.innerHTML = '';
+        this.board.capturedPieces[COLORS.BLACK].forEach(piece => {
+            const capturedPiece = document.createElement('span');
+            capturedPiece.className = 'captured-piece';
+            capturedPiece.textContent = piece.getSymbol();
+            this.aiCapturedElement.appendChild(capturedPiece);
+        });
+
+        // Cập nhật lịch sử nước đi
+        this.moveHistoryElement.innerHTML = '';
+        this.board.moveHistory.forEach((move, index) => {
+            const moveElement = document.createElement('div');
+            moveElement.className = 'move';
+            
+            const fromSquare = this.getSquareName(move.from.row, move.from.col);
+            const toSquare = this.getSquareName(move.to.row, move.to.col);
+            
+            moveElement.textContent = `${fromSquare} → ${toSquare}`;
+            this.moveHistoryElement.appendChild(moveElement);
+        });
+    }
+
+    getSquareName(row, col) {
+        const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+        const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
+        return files[col] + ranks[row];
+    }
+}
+
+// Khởi tạo trò chơi khi trang được tải
+document.addEventListener('DOMContentLoaded', () => {
+    new ChessUI();
+});
