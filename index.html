@@ -1,39 +1,35 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cờ vua </title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cờ Vua với AI</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>Cờ vua </h1>
-      <div class="controls">
-        <label>Độ khó Bot:
-          <select id="botDepth">
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4" selected>4</option>
-            <option value="5">5</option>
-          </select>
-        </label>
-        <button id="newGame">Ván mới</button>
-        <button id="undoBtn">Hoàn tác</button>
-        <span id="status"></span>
-      </div>
-    </header>
+    <div class="container">
+        <h1>Cờ Vua với AI</h1>
+        
+        <div class="game-info">
+            <div id="turn-indicator">Lượt đi: <span id="current-player">Trắng</span></div>
+            <button onclick="resetGame()">Chơi lại</button>
+        </div>
 
-    <main>
-      <div id="board" class="board"></div>
-      <aside class="sidebar">
-        <h3>Lịch sử nước đi</h3>
-        <ol id="movelist"></ol>
-      </aside>
-    </main>
-  </div>
+        <div class="board-container">
+            <div id="board"></div>
+        </div>
 
-  <script src="script.js"></script>
+        <div class="rules">
+            <h3>Luật chơi:</h3>
+            <ul>
+                <li>Người chơi đi quân <strong>Trắng</strong></li>
+                <li>AI đi quân <strong>Đen</strong></li>
+                <li>Click vào quân cờ để xem nước đi hợp lệ</li>
+                <li>Click vào ô xanh để di chuyển</li>
+            </ul>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
 </body>
 </html>
