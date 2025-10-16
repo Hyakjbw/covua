@@ -1,813 +1,578 @@
-// Định nghĩa các hằng số
-const PIECE_TYPES = {
-    EMPTY: 0,
-    PAWN: 1,
-    ROOK: 2,
-    KNIGHT: 3,
-    BISHOP: 4,
-    QUEEN: 5,
-    KING: 6
-};
+// script.js
+// Simple chess UI + JS engine (negamax + alpha-beta + quiescence).
+// Limitations: reasonably complete legal move generation (including castling, en-passant is not implemented),
+// repetition / 50-move rule not tracked. Good for training / casual play. For top strength integrate Stockfish WASM.
 
-const COLORS = {
-    WHITE: 0,
-    BLACK: 1
-};
+(() => {
+  // --- Board representation
+  // 8x8 board, 0..7 rows (rank 8 down to 1 for rendering convenience)
+  // pieces: uppercase = White, lowercase = Black
+  const initialFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+  let board = [];
+  let turn = 'w';
+  let moveHistory = [];
+  let selected = null;
+  let legalCache = null;
+  const boardEl = document.getElementById('board');
+  const statusEl = document.getElementById('status');
+  const movelistEl = document.getElementById('movelist');
+  const botDepthEl = document.getElementById('botDepth');
 
-const PIECE_SYMBOLS = {
-    [COLORS.WHITE]: {
-        [PIECE_TYPES.PAWN]: '♙',
-        [PIECE_TYPES.ROOK]: '♖',
-        [PIECE_TYPES.KNIGHT]: '♘',
-        [PIECE_TYPES.BISHOP]: '♗',
-        [PIECE_TYPES.QUEEN]: '♕',
-        [PIECE_TYPES.KING]: '♔'
-    },
-    [COLORS.BLACK]: {
-        [PIECE_TYPES.PAWN]: '♟',
-        [PIECE_TYPES.ROOK]: '♜',
-        [PIECE_TYPES.KNIGHT]: '♞',
-        [PIECE_TYPES.BISHOP]: '♝',
-        [PIECE_TYPES.QUEEN]: '♛',
-        [PIECE_TYPES.KING]: '♚'
-    }
-};
+  // piece unicode
+  const pUnicode = {
+    'P':'♙','N':'♘','B':'♗','R':'♖','Q':'♕','K':'♔',
+    'p':'♟︎','n':'♞','b':'♝','r':'♜','q':'♛','k':'♚'
+  };
 
-const PIECE_VALUES = {
-    [PIECE_TYPES.PAWN]: 10,
-    [PIECE_TYPES.KNIGHT]: 30,
-    [PIECE_TYPES.BISHOP]: 30,
-    [PIECE_TYPES.ROOK]: 50,
-    [PIECE_TYPES.QUEEN]: 90,
-    [PIECE_TYPES.KING]: 900
-};
-
-// Lớp đại diện cho một quân cờ
-class Piece {
-    constructor(type, color) {
-        this.type = type;
-        this.color = color;
-        this.hasMoved = false;
-    }
-
-    getSymbol() {
-        return PIECE_SYMBOLS[this.color][this.type];
-    }
-
-    getValue() {
-        return PIECE_VALUES[this.type];
-    }
-
-    clone() {
-        const piece = new Piece(this.type, this.color);
-        piece.hasMoved = this.hasMoved;
-        return piece;
-    }
-}
-
-// Lớp đại diện cho bàn cờ
-class ChessBoard {
-    constructor() {
-        this.board = Array(8).fill().map(() => Array(8).fill(null));
-        this.currentPlayer = COLORS.WHITE;
-        this.selectedPiece = null;
-        this.validMoves = [];
-        this.moveHistory = [];
-        this.capturedPieces = {
-            [COLORS.WHITE]: [],
-            [COLORS.BLACK]: []
-        };
-        this.initializeBoard();
-    }
-
-    initializeBoard() {
-        // Thiết lập quân cờ đen
-        this.board[0][0] = new Piece(PIECE_TYPES.ROOK, COLORS.BLACK);
-        this.board[0][1] = new Piece(PIECE_TYPES.KNIGHT, COLORS.BLACK);
-        this.board[0][2] = new Piece(PIECE_TYPES.BISHOP, COLORS.BLACK);
-        this.board[0][3] = new Piece(PIECE_TYPES.QUEEN, COLORS.BLACK);
-        this.board[0][4] = new Piece(PIECE_TYPES.KING, COLORS.BLACK);
-        this.board[0][5] = new Piece(PIECE_TYPES.BISHOP, COLORS.BLACK);
-        this.board[0][6] = new Piece(PIECE_TYPES.KNIGHT, COLORS.BLACK);
-        this.board[0][7] = new Piece(PIECE_TYPES.ROOK, COLORS.BLACK);
-        
-        for (let i = 0; i < 8; i++) {
-            this.board[1][i] = new Piece(PIECE_TYPES.PAWN, COLORS.BLACK);
+  function fenToBoard(fen) {
+    const parts=fen.split(' ');
+    const rows = parts[0].split('/');
+    let b = Array(8).fill().map(()=>Array(8).fill(''));
+    for (let r=0;r<8;r++){
+      let file=0;
+      for (let ch of rows[r]){
+        if (/\d/.test(ch)) file += parseInt(ch);
+        else {
+          b[r][file]=ch; file++;
         }
+      }
+    }
+    turn = parts[1] === 'w' ? 'w' : 'b';
+    return b;
+  }
 
-        // Thiết lập quân cờ trắng
-        this.board[7][0] = new Piece(PIECE_TYPES.ROOK, COLORS.WHITE);
-        this.board[7][1] = new Piece(PIECE_TYPES.KNIGHT, COLORS.WHITE);
-        this.board[7][2] = new Piece(PIECE_TYPES.BISHOP, COLORS.WHITE);
-        this.board[7][3] = new Piece(PIECE_TYPES.QUEEN, COLORS.WHITE);
-        this.board[7][4] = new Piece(PIECE_TYPES.KING, COLORS.WHITE);
-        this.board[7][5] = new Piece(PIECE_TYPES.BISHOP, COLORS.WHITE);
-        this.board[7][6] = new Piece(PIECE_TYPES.KNIGHT, COLORS.WHITE);
-        this.board[7][7] = new Piece(PIECE_TYPES.ROOK, COLORS.WHITE);
-        
-        for (let i = 0; i < 8; i++) {
-            this.board[6][i] = new Piece(PIECE_TYPES.PAWN, COLORS.WHITE);
+  function boardToFen() {
+    let rows=[];
+    for (let r=0;r<8;r++){
+      let row="", empty=0;
+      for (let c=0;c<8;c++){
+        const p=board[r][c];
+        if (!p){ empty++; } else { if (empty){ row+=empty; empty=0;} row+=p; }
+      }
+      if (empty) row+=empty;
+      rows.push(row);
+    }
+    return rows.join('/') + ' ' + (turn==='w'?'w':'b') + ' - 0 1';
+  }
+
+  // --- Rendering
+  function render() {
+    boardEl.innerHTML='';
+    for (let r=0;r<8;r++){
+      for (let c=0;c<8;c++){
+        const sq = document.createElement('div');
+        sq.className = 'square ' + (((r+c)%2) ? 'dark':'light');
+        sq.dataset.r=r; sq.dataset.c=c;
+        const p = board[r][c];
+        if (p) {
+          const span = document.createElement('span');
+          span.textContent = pUnicode[p] || p;
+          span.style.fontSize = '48px';
+          sq.appendChild(span);
         }
+        // event
+        sq.addEventListener('click', onSquareClick);
+        boardEl.appendChild(sq);
+      }
     }
+    statusEl.textContent = (turn==='w'?'White':'Black') + "'s turn";
+    updateMovelist();
+    highlightLegal();
+  }
 
-    getPiece(row, col) {
-        if (row < 0 || row >= 8 || col < 0 || col >= 8) return null;
-        return this.board[row][col];
+  function highlightLegal() {
+    // clear all selected/hints
+    document.querySelectorAll('.square').forEach(el=>{
+      el.classList.remove('selected','captureHint');
+      const h = el.querySelector('.hint'); if (h) h.remove();
+    });
+    if (!selected) return;
+    const [sr,sc]=selected;
+    const elSel = squareEl(sr,sc); if (elSel) elSel.classList.add('selected');
+    const moves = legalMovesFor(sr,sc);
+    for (let m of moves){
+      const [r,c]=m.to;
+      const el = squareEl(r,c);
+      if (!el) continue;
+      if (board[r][c]) el.classList.add('captureHint');
+      else {
+        const hint = document.createElement('div'); hint.className='hint';
+        el.appendChild(hint);
+      }
     }
+  }
 
-    setPiece(row, col, piece) {
-        if (row < 0 || row >= 8 || col < 0 || col >= 8) return;
-        this.board[row][col] = piece;
+  function squareEl(r,c){
+    // board grid appended row-major, 8x8
+    const idx = r*8 + c;
+    return boardEl.children[idx];
+  }
+
+  // --- Moves & legality
+  function inside(r,c){ return r>=0 && r<8 && c>=0 && c<8; }
+  function isWhite(p){ return !!p && p === p.toUpperCase(); }
+  function isBlack(p){ return !!p && p === p.toLowerCase(); }
+
+  function legalMovesFor(r,c){
+    const p = board[r][c];
+    if (!p) return [];
+    const color = isWhite(p)?'w':'b';
+    if ((color==='w' && turn!=='w') || (color==='b' && turn!=='b')) return [];
+    // generate pseudo-legal moves
+    const pseudos = generatePseudoMoves(r,c);
+    // filter out moves leaving own king in check
+    const legals = [];
+    for (let mv of pseudos){
+      makeMove(mv, true);
+      const kingSafe = !isKingAttacked(color);
+      undoMove();
+      if (kingSafe) legals.push(mv);
     }
+    return legals;
+  }
 
-    selectPiece(row, col) {
-        const piece = this.getPiece(row, col);
-        if (piece && piece.color === this.currentPlayer) {
-            this.selectedPiece = { row, col, piece };
-            this.validMoves = this.calculateValidMoves(row, col);
-            return true;
+  function generatePseudoMoves(r,c){
+    const p = board[r][c];
+    const out = [];
+    if (!p) return out;
+    const color = isWhite(p)?'w':'b';
+    const forward = color==='w' ? -1 : 1; // board row 0 is rank8
+    const enemy = color==='w' ? isBlack : isWhite;
+    const ally = color==='w' ? isWhite : isBlack;
+
+    const add = (tr,tc,type='move') => out.push({from:[r,c],to:[tr,tc],piece:p,capture:board[tr][tc]||null,meta:type});
+
+    const t = p.toLowerCase();
+    if (t==='p'){
+      // pawn moves
+      const oneR = r + forward;
+      if (inside(oneR,c) && !board[oneR][c]) add(oneR,c);
+      // double
+      const startRow = (color==='w'?6:1);
+      const twoR = r + 2*forward;
+      if (r===startRow && inside(twoR,c) && !board[oneR][c] && !board[twoR][c]) add(twoR,c);
+      // captures
+      for (let dc of [-1,1]){
+        const cr=c+dc;
+        if (inside(oneR,cr) && board[oneR][cr] && enemy(board[oneR][cr])) add(oneR,cr,'capture');
+      }
+      // NOTE: en-passant not implemented
+    } else if (t==='n'){
+      const steps = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+      for (let s of steps){
+        const tr=r+s[0], tc=c+s[1];
+        if (!inside(tr,tc)) continue;
+        if (!board[tr][tc] || enemy(board[tr][tc])) add(tr,tc, board[tr][tc] ? 'capture' : 'move');
+      }
+    } else if (t==='b' || t==='q'){
+      const dirs = [[-1,-1],[-1,1],[1,-1],[1,1]];
+      for (let d of dirs){
+        let tr=r+d[0], tc=c+d[1];
+        while (inside(tr,tc)){
+          if (!board[tr][tc]) add(tr,tc);
+          else { if (enemy(board[tr][tc])) add(tr,tc,'capture'); break; }
+          tr+=d[0]; tc+=d[1];
         }
-        return false;
+      }
     }
-
-    movePiece(fromRow, fromCol, toRow, toCol) {
-        const piece = this.getPiece(fromRow, fromCol);
-        if (!piece) return false;
-
-        // Kiểm tra nước đi có hợp lệ không
-        const isValidMove = this.validMoves.some(move => 
-            move.row === toRow && move.col === toCol
-        );
-
-        if (!isValidMove) return false;
-
-        // Lưu trạng thái trước khi di chuyển
-        const capturedPiece = this.getPiece(toRow, toCol);
-        const moveInfo = {
-            from: { row: fromRow, col: fromCol },
-            to: { row: toRow, col: toCol },
-            piece: piece,
-            captured: capturedPiece,
-            hasMoved: piece.hasMoved
-        };
-
-        // Thực hiện di chuyển
-        if (capturedPiece) {
-            this.capturedPieces[this.currentPlayer].push(capturedPiece);
+    if (t==='r' || t==='q'){
+      const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+      for (let d of dirs){
+        let tr=r+d[0], tc=c+d[1];
+        while (inside(tr,tc)){
+          if (!board[tr][tc]) add(tr,tc);
+          else { if (enemy(board[tr][tc])) add(tr,tc,'capture'); break; }
+          tr+=d[0]; tc+=d[1];
         }
-
-        this.setPiece(toRow, toCol, piece);
-        this.setPiece(fromRow, fromCol, null);
-        piece.hasMoved = true;
-
-        // Thêm vào lịch sử
-        this.moveHistory.push(moveInfo);
-
-        // Đổi lượt
-        this.currentPlayer = this.currentPlayer === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
-        this.selectedPiece = null;
-        this.validMoves = [];
-
-        return true;
+      }
     }
-
-    undoMove() {
-        if (this.moveHistory.length === 0) return false;
-
-        const lastMove = this.moveHistory.pop();
-        const { from, to, piece, captured, hasMoved } = lastMove;
-
-        // Khôi phục quân cờ
-        this.setPiece(from.row, from.col, piece);
-        this.setPiece(to.row, to.col, captured);
-        piece.hasMoved = hasMoved;
-
-        // Khôi phục quân bị bắt nếu có
-        if (captured) {
-            this.capturedPieces[this.currentPlayer].pop();
+    if (t==='k'){
+      for (let dr=-1;dr<=1;dr++) for (let dc=-1;dc<=1;dc++){
+        if (dr===0 && dc===0) continue;
+        const tr=r+dr, tc=c+dc;
+        if (!inside(tr,tc)) continue;
+        if (!board[tr][tc] || enemy(board[tr][tc])) add(tr,tc, board[tr][tc] ? 'capture' : 'move');
+      }
+      // castling (basic): check rook present and squares empty and not in check
+      if (isWhite(p) && r===7 && c===4){
+        // kingside
+        if (board[7][7] && board[7][7]==='R' && !board[7][5] && !board[7][6]){
+          add(7,6,'castleK');
         }
-
-        // Đổi lượt về người chơi trước
-        this.currentPlayer = this.currentPlayer === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
-
-        return true;
-    }
-
-    calculateValidMoves(row, col) {
-        const piece = this.getPiece(row, col);
-        if (!piece) return [];
-
-        const moves = [];
-        const directions = this.getMoveDirections(piece);
-
-        for (const direction of directions) {
-            for (let i = 1; i <= (piece.type === PIECE_TYPES.KNIGHT ? 1 : 7); i++) {
-                const newRow = row + direction.dr * i;
-                const newCol = col + direction.dc * i;
-
-                // Kiểm tra xem có ra ngoài bàn cờ không
-                if (newRow < 0 || newRow >= 8 || newCol < 0 || newCol >= 8) break;
-
-                const targetPiece = this.getPiece(newRow, newCol);
-
-                // Ô trống
-                if (!targetPiece) {
-                    moves.push({ row: newRow, col: newCol, capture: false });
-                } 
-                // Có quân đối phương
-                else if (targetPiece.color !== piece.color) {
-                    moves.push({ row: newRow, col: newCol, capture: true });
-                    break; // Không thể đi xa hơn sau khi ăn quân
-                } 
-                // Có quân đồng minh
-                else {
-                    break; // Không thể đi qua quân đồng minh
-                }
-
-                // Các quân cờ như mã, tốt chỉ di chuyển một bước theo hướng
-                if (piece.type === PIECE_TYPES.KNIGHT || piece.type === PIECE_TYPES.PAWN || piece.type === PIECE_TYPES.KING) {
-                    break;
-                }
-            }
+        if (board[7][0] && board[7][0]==='R' && !board[7][1] && !board[7][2] && !board[7][3]){
+          add(7,2,'castleQ');
         }
-
-        // Xử lý nước đi đặc biệt cho tốt
-        if (piece.type === PIECE_TYPES.PAWN) {
-            const direction = piece.color === COLORS.WHITE ? -1 : 1;
-            
-            // Di chuyển tiến 1 ô
-            if (!this.getPiece(row + direction, col)) {
-                moves.push({ row: row + direction, col: col, capture: false });
-                
-                // Di chuyển tiến 2 ô từ vị trí ban đầu
-                if ((piece.color === COLORS.WHITE && row === 6) || 
-                    (piece.color === COLORS.BLACK && row === 1)) {
-                    if (!this.getPiece(row + 2 * direction, col)) {
-                        moves.push({ row: row + 2 * direction, col: col, capture: false });
-                    }
-                }
-            }
-            
-            // Ăn chéo
-            for (const dc of [-1, 1]) {
-                const newRow = row + direction;
-                const newCol = col + dc;
-                
-                if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
-                    const targetPiece = this.getPiece(newRow, newCol);
-                    if (targetPiece && targetPiece.color !== piece.color) {
-                        moves.push({ row: newRow, col: newCol, capture: true });
-                    }
-                }
-            }
+      }
+      if (isBlack(p) && r===0 && c===4){
+        if (board[0][7] && board[0][7]==='r' && !board[0][5] && !board[0][6]){
+          add(0,6,'castleK');
         }
-
-        return moves;
-    }
-
-    getMoveDirections(piece) {
-        switch (piece.type) {
-            case PIECE_TYPES.PAWN:
-                const direction = piece.color === COLORS.WHITE ? -1 : 1;
-                return [{ dr: direction, dc: 0 }];
-            
-            case PIECE_TYPES.ROOK:
-                return [
-                    { dr: -1, dc: 0 }, { dr: 1, dc: 0 },
-                    { dr: 0, dc: -1 }, { dr: 0, dc: 1 }
-                ];
-            
-            case PIECE_TYPES.KNIGHT:
-                return [
-                    { dr: -2, dc: -1 }, { dr: -2, dc: 1 },
-                    { dr: -1, dc: -2 }, { dr: -1, dc: 2 },
-                    { dr: 1, dc: -2 }, { dr: 1, dc: 2 },
-                    { dr: 2, dc: -1 }, { dr: 2, dc: 1 }
-                ];
-            
-            case PIECE_TYPES.BISHOP:
-                return [
-                    { dr: -1, dc: -1 }, { dr: -1, dc: 1 },
-                    { dr: 1, dc: -1 }, { dr: 1, dc: 1 }
-                ];
-            
-            case PIECE_TYPES.QUEEN:
-                return [
-                    { dr: -1, dc: 0 }, { dr: 1, dc: 0 },
-                    { dr: 0, dc: -1 }, { dr: 0, dc: 1 },
-                    { dr: -1, dc: -1 }, { dr: -1, dc: 1 },
-                    { dr: 1, dc: -1 }, { dr: 1, dc: 1 }
-                ];
-            
-            case PIECE_TYPES.KING:
-                return [
-                    { dr: -1, dc: 0 }, { dr: 1, dc: 0 },
-                    { dr: 0, dc: -1 }, { dr: 0, dc: 1 },
-                    { dr: -1, dc: -1 }, { dr: -1, dc: 1 },
-                    { dr: 1, dc: -1 }, { dr: 1, dc: 1 }
-                ];
-            
-            default:
-                return [];
+        if (board[0][0] && board[0][0]==='r' && !board[0][1] && !board[0][2] && !board[0][3]){
+          add(0,2,'castleQ');
         }
+      }
     }
+    return out;
+  }
 
-    clone() {
-        const newBoard = new ChessBoard();
-        newBoard.board = this.board.map(row => 
-            row.map(piece => piece ? piece.clone() : null)
-        );
-        newBoard.currentPlayer = this.currentPlayer;
-        newBoard.moveHistory = [...this.moveHistory];
-        newBoard.capturedPieces = {
-            [COLORS.WHITE]: [...this.capturedPieces[COLORS.WHITE]],
-            [COLORS.BLACK]: [...this.capturedPieces[COLORS.BLACK]]
-        };
-        return newBoard;
+  // --- make / undo moves (simple stack)
+  const stack = [];
+  function makeMove(move, silent=false){
+    const [fr,fc]=move.from, [tr,tc]=move.to;
+    const piece = board[fr][fc];
+    const captured = board[tr][tc];
+    // for castling, move rook too
+    stack.push({move, piece, captured, prevTurn:turn});
+    board[fr][fc]='';
+    board[tr][tc]=piece;
+    // handle castle meta
+    if (move.meta==='castleK'){
+      if (piece==='K'){ board[tr][tc]='K'; board[fr][fc]=''; board[tr][tc]; board[tr][tc]; board[tr][tc];
+        // rook from h to f
+        board[tr][5]=board[tr][7]; board[tr][7]='';
+      } else if (piece==='k'){
+        board[tr][5]=board[tr][7]; board[tr][7]='';
+      }
+    } else if (move.meta==='castleQ'){
+      if (piece==='K'){ board[tr][tc]='K'; board[tr][3]=board[tr][0]; board[tr][0]=''; }
+      else if (piece==='k'){ board[tr][tc]='k'; board[tr][3]=board[tr][0]; board[tr][0]=''; }
     }
+    // pawn promotion auto-queen
+    if ((piece==='P' && tr===0) || (piece==='p' && tr===7)){
+      board[tr][tc] = (piece==='P'?'Q':'q');
+    }
+    turn = (turn==='w'?'b':'w');
+    if (!silent){
+      moveHistory.push(moveNotation(move, piece, captured));
+    }
+  }
+  function undoMove(){
+    const state = stack.pop();
+    if (!state) return;
+    const {move,piece,captured,prevTurn} = state;
+    const [fr,fc]=move.from, [tr,tc]=move.to;
+    board[fr][fc]=piece;
+    board[tr][tc]=captured;
+    // undo castle rook movement
+    if (move.meta==='castleK'){
+      if (piece==='K' || piece==='k'){
+        board[tr][7]=board[tr][5];
+        board[tr][5]='';
+      }
+    } else if (move.meta==='castleQ'){
+      if (piece==='K' || piece==='k'){
+        board[tr][0]=board[tr][3];
+        board[tr][3]='';
+      }
+    }
+    turn = prevTurn;
+    moveHistory.pop();
+  }
 
-    isCheck(color) {
-        // Tìm vua
-        let kingRow, kingCol;
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                const piece = this.getPiece(row, col);
-                if (piece && piece.type === PIECE_TYPES.KING && piece.color === color) {
-                    kingRow = row;
-                    kingCol = col;
-                    break;
-                }
-            }
+  // --- king attacked?
+  function isKingAttacked(color){
+    // find king
+    let kr=-1,kc=-1;
+    const target = color==='w' ? 'K':'k';
+    for (let r=0;r<8;r++) for (let c=0;c<8;c++) if (board[r][c]===target){ kr=r; kc=c; }
+    if (kr===-1) return true; // no king => attacked
+    // generate all enemy pseudo moves and see if any to king
+    for (let r=0;r<8;r++) for (let c=0;c<8;c++){
+      const p = board[r][c]; if (!p) continue;
+      const colorP = isWhite(p)?'w':'b';
+      if (colorP===color) continue;
+      const arr = generatePseudoMoves(r,c);
+      for (let m of arr) if (m.to[0]===kr && m.to[1]===kc) return true;
+    }
+    return false;
+  }
+
+  // --- notation for movelist (simple)
+  function moveNotation(m, piece, capture){
+    const from = rcToAlg(m.from[0],m.from[1]);
+    const to = rcToAlg(m.to[0],m.to[1]);
+    const pct = (piece && (piece.toLowerCase()!=='p')) ? piece.toUpperCase() : '';
+    return `${pct}${from}${capture? 'x': ''}${to}`;
+  }
+  function rcToAlg(r,c){
+    const file = 'abcdefgh'[c];
+    const rank = 8 - r;
+    return file + rank;
+  }
+
+  // --- Movelist UI
+  function updateMovelist(){
+    movelistEl.innerHTML='';
+    for (let i=0;i<moveHistory.length;i++){
+      const li = document.createElement('li');
+      li.textContent = moveHistory[i];
+      movelistEl.appendChild(li);
+    }
+  }
+
+  // --- UI events
+  function onSquareClick(e){
+    const el = e.currentTarget;
+    const r = parseInt(el.dataset.r), c = parseInt(el.dataset.c);
+    const p = board[r][c];
+    if (selected){
+      // attempt move selected -> r,c
+      const moves = legalMovesFor(selected[0], selected[1]);
+      const chosen = moves.find(m => m.to[0]===r && m.to[1]===c);
+      if (chosen){
+        makeMove(chosen);
+        selected=null;
+        render();
+        window.setTimeout(()=>{ maybeBotMove(); }, 50);
+        return;
+      }
+    }
+    // else if piece of player's turn selected
+    if (p && ((isWhite(p) && turn==='w') || (isBlack(p) && turn==='b')) ){
+      selected=[r,c];
+      render();
+    } else {
+      selected=null;
+      render();
+    }
+  }
+
+  // --- Simple engine: negamax with alpha-beta, quiescence, piece-square
+  const pieceValues = { 'p':100,'n':320,'b':330,'r':500,'q':900,'k':20000 };
+  const pst_w = {
+    p: [
+      [0,0,0,0,0,0,0,0],
+      [5,10,10,-20,-20,10,10,5],
+      [5,-5,-10,0,0,-10,-5,5],
+      [0,0,0,20,20,0,0,0],
+      [5,5,10,25,25,10,5,5],
+      [10,10,20,30,30,20,10,10],
+      [50,50,50,50,50,50,50,50],
+      [0,0,0,0,0,0,0,0]
+    ],
+    n:[
+      [-50,-40,-30,-30,-30,-30,-40,-50],
+      [-40,-20,0,0,0,0,-20,-40],
+      [-30,0,10,15,15,10,0,-30],
+      [-30,5,15,20,20,15,5,-30],
+      [-30,0,15,20,20,15,0,-30],
+      [-30,5,10,15,15,10,5,-30],
+      [-40,-20,0,5,5,0,-20,-40],
+      [-50,-40,-30,-30,-30,-30,-40,-50]
+    ],
+    b:[
+      [-20,-10,-10,-10,-10,-10,-10,-20],
+      [-10,0,0,0,0,0,0,-10],
+      [-10,0,5,10,10,5,0,-10],
+      [-10,5,5,10,10,5,5,-10],
+      [-10,0,10,10,10,10,0,-10],
+      [-10,10,10,10,10,10,10,-10],
+      [-10,5,0,0,0,0,5,-10],
+      [-20,-10,-10,-10,-10,-10,-10,-20]
+    ],
+    r:[
+      [0,0,0,5,5,0,0,0],
+      [-5,0,0,0,0,0,0,-5],
+      [-5,0,0,0,0,0,0,-5],
+      [-5,0,0,0,0,0,0,-5],
+      [-5,0,0,0,0,0,0,-5],
+      [-5,0,0,0,0,0,0,-5],
+      [5,10,10,10,10,10,10,5],
+      [0,0,0,0,0,0,0,0]
+    ],
+    q:[
+      [-20,-10,-10,-5,-5,-10,-10,-20],
+      [-10,0,0,0,0,0,0,-10],
+      [-10,0,5,5,5,5,0,-10],
+      [-5,0,5,5,5,5,0,-5],
+      [0,0,5,5,5,5,0,-5],
+      [-10,5,5,5,5,5,0,-10],
+      [-10,0,5,0,0,0,0,-10],
+      [-20,-10,-10,-5,-5,-10,-10,-20]
+    ],
+    k:[
+      [-30,-40,-40,-50,-50,-40,-40,-30],
+      [-30,-40,-40,-50,-50,-40,-40,-30],
+      [-30,-40,-40,-50,-50,-40,-40,-30],
+      [-30,-40,-40,-50,-50,-40,-40,-30],
+      [-20,-30,-30,-40,-40,-30,-30,-20],
+      [-10,-20,-20,-20,-20,-20,-20,-10],
+      [20,20,0,0,0,0,20,20],
+      [20,30,10,0,0,10,30,20]
+    ]
+  };
+
+  function materialAndPST() {
+    let score = 0;
+    for (let r=0;r<8;r++) for (let c=0;c<8;c++){
+      const p = board[r][c];
+      if (!p) continue;
+      const lower = p.toLowerCase();
+      const val = pieceValues[lower] || 0;
+      const pst = (pst_w[lower] && pst_w[lower][r] && pst_w[lower][r][c]) || 0;
+      if (isWhite(p)) score += val + pst;
+      else score -= val + pst;
+    }
+    return score;
+  }
+
+  function evaluate() {
+    // simple evaluate from white perspective
+    if (isCheckmate('w')) return -999999;
+    if (isCheckmate('b')) return 999999;
+    return materialAndPST();
+  }
+
+  function isCheckmate(color){
+    // check if color to move has any legal moves
+    const anyMove = hasAnyLegalMove(color);
+    if (!anyMove && isKingAttacked(color)) return true;
+    return false;
+  }
+
+  function hasAnyLegalMove(color){
+    for (let r=0;r<8;r++) for (let c=0;c<8;c++){
+      const p = board[r][c]; if (!p) continue;
+      if ((color==='w' && !isWhite(p)) || (color==='b' && !isBlack(p))) continue;
+      const arr = legalMovesFor(r,c);
+      if (arr.length) return true;
+    }
+    return false;
+  }
+
+  // generate all legal moves for side
+  function allLegalMovesForSide(side){
+    const ms = [];
+    for (let r=0;r<8;r++) for (let c=0;c<8;c++){
+      const p = board[r][c]; if (!p) continue;
+      if ((side==='w' && isWhite(p)) || (side==='b' && isBlack(p))){
+        const lm = legalMovesFor(r,c);
+        ms.push(...lm);
+      }
+    }
+    return ms;
+  }
+
+  // quiescence: search captures only
+  function quiesce(alpha,beta){
+    let stand = evaluate();
+    if (stand >= beta) return beta;
+    if (alpha < stand) alpha = stand;
+    // generate capture moves for side to move
+    const caps = allLegalMovesForSide(turn).filter(m => m.capture);
+    // order: captures with higher "victim - attacker" first (simple)
+    caps.sort((a,b)=> {
+      const va = valueOf(a.capture), vb = valueOf(b.capture);
+      const aa = valueOf(a.piece), ab = valueOf(b.piece);
+      return (vb - ab) - (va - aa);
+    });
+    for (let m of caps){
+      makeMove(m,true);
+      const score = -quiesce(-beta,-alpha);
+      undoMove();
+      if (score >= beta) return beta;
+      if (score > alpha) alpha = score;
+    }
+    return alpha;
+  }
+
+  function valueOf(p){
+    if (!p) return 0;
+    return pieceValues[p.toLowerCase()] || 0;
+  }
+
+  // negamax with alpha-beta
+  function negamax(depth, alpha, beta){
+    if (depth===0) return quiesce(alpha,beta);
+    if (isCheckmate(turn)) {
+      return turn==='w' ? -999999 : 999999;
+    }
+    let moves = allLegalMovesForSide(turn);
+    if (moves.length===0) return 0; // stalemate
+    // move ordering: captures first
+    moves.sort((a,b)=> (b.capture?1:0)-(a.capture?1:0));
+    let best = -Infinity;
+    for (let m of moves){
+      makeMove(m,true);
+      const score = -negamax(depth-1, -beta, -alpha);
+      undoMove();
+      if (score > best) best = score;
+      if (score > alpha) alpha = score;
+      if (alpha >= beta) break; // beta cut
+    }
+    return best;
+  }
+
+  // find best move (iterative deepening)
+  function findBestMove(maxDepth){
+    let bestMove = null;
+    let bestScore = -Infinity;
+    for (let d=1; d<=maxDepth; d++){
+      const moves = allLegalMovesForSide(turn);
+      // simple ordering
+      moves.sort((a,b)=> (b.capture?1:0)-(a.capture?1:0));
+      for (let m of moves){
+        makeMove(m,true);
+        const score = -negamax(d-1, -999999, 999999);
+        undoMove();
+        if (score > bestScore || bestMove===null){
+          bestScore = score; bestMove = m;
         }
+      }
+      // optional: could provide iterative results to UI
+    }
+    return bestMove;
+  }
 
-        // Kiểm tra xem có quân đối phương nào tấn công vua không
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                const piece = this.getPiece(row, col);
-                if (piece && piece.color !== color) {
-                    const moves = this.calculateValidMoves(row, col);
-                    if (moves.some(move => move.row === kingRow && move.col === kingCol)) {
-                        return true;
-                    }
-                }
-            }
+  // --- Bot integration
+  let thinking = false;
+  function maybeBotMove(){
+    if ((turn==='b')){ // bot plays black by default. You can adjust.
+      thinking = true;
+      statusEl.textContent = "Bot thinking...";
+      const depth = parseInt(botDepthEl.value,10) || 4;
+      // allow UI update before heavy calc
+      setTimeout(()=>{
+        const t0 = performance.now();
+        const best = findBestMove(depth);
+        const t1 = performance.now();
+        if (!best){
+          // game over?
+          if (isCheckmate(turn)) statusEl.textContent = (turn==='w'?'White':'Black') + " is checkmated";
+          else statusEl.textContent = "Stalemate";
+          thinking=false; render(); return;
         }
-
-        return false;
+        makeMove(best);
+        moveHistory.push(moveNotation(best, best.piece, best.capture));
+        render();
+        thinking=false;
+        statusEl.textContent = `Bot moved in ${((t1-t0)/1000).toFixed(2)}s`;
+      }, 25);
     }
+  }
 
-    isCheckmate(color) {
-        if (!this.isCheck(color)) return false;
+  // --- helpers
+  function setupFromFEN(fen){
+    board = fenToBoard(fen);
+    moveHistory = [];
+    stack.length = 0;
+    selected=null;
+    render();
+  }
 
-        // Kiểm tra xem có nước đi nào để thoát chiếu không
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                const piece = this.getPiece(row, col);
-                if (piece && piece.color === color) {
-                    const moves = this.calculateValidMoves(row, col);
-                    for (const move of moves) {
-                        const testBoard = this.clone();
-                        testBoard.movePiece(row, col, move.row, move.col);
-                        if (!testBoard.isCheck(color)) {
-                            return false;
-                        }
-                    }
-                }
-            }
-        }
+  // --- init
+  function init(){
+    setupFromFEN(initialFEN);
+    document.getElementById('newGame').addEventListener('click', ()=> setupFromFEN(initialFEN));
+    document.getElementById('undoBtn').addEventListener('click', ()=>{
+      undoMove(); undoMove(); // undo both sides
+      render();
+    });
+    // let white be human, black bot. If you want bot play white, call maybeBotMove() on start.
+  }
 
-        return true;
-    }
+  // expose some for debugging
+  window.__chess = {board, setupFromFEN};
 
-    evaluate() {
-        let score = 0;
-
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                const piece = this.getPiece(row, col);
-                if (piece) {
-                    const value = piece.getValue();
-                    // Thêm giá trị vị trí cho một số quân cờ
-                    if (piece.type === PIECE_TYPES.PAWN) {
-                        // Tốt ở trung tâm có giá trị cao hơn
-                        const pawnTable = [
-                            [0, 0, 0, 0, 0, 0, 0, 0],
-                            [5, 5, 5, 5, 5, 5, 5, 5],
-                            [1, 1, 2, 3, 3, 2, 1, 1],
-                            [0, 0, 0, 2, 2, 0, 0, 0],
-                            [0, 0, 0, 1, 1, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0, 0, 0]
-                        ];
-                        score += (piece.color === COLORS.WHITE ? pawnTable[row][col] : pawnTable[7 - row][col]);
-                    }
-
-                    score += piece.color === COLORS.WHITE ? value : -value;
-                }
-            }
-        }
-
-        // Thêm điểm cho việc kiểm soát trung tâm
-        const centerSquares = [[3, 3], [3, 4], [4, 3], [4, 4]];
-        for (const [row, col] of centerSquares) {
-            const piece = this.getPiece(row, col);
-            if (piece) {
-                score += piece.color === COLORS.WHITE ? 1 : -1;
-            }
-        }
-
-        return score;
-    }
-}
-
-// Lớp AI sử dụng thuật toán Minimax với cắt tỉa Alpha-Beta
-class ChessAI {
-    constructor(difficulty = 3) {
-        this.difficulty = difficulty;
-    }
-
-    setDifficulty(difficulty) {
-        this.difficulty = difficulty;
-    }
-
-    getBestMove(board) {
-        const startTime = Date.now();
-        let bestMove = null;
-        let bestValue = -Infinity;
-        const alpha = -Infinity;
-        const beta = Infinity;
-
-        // Lấy tất cả các nước đi có thể
-        const moves = this.getAllPossibleMoves(board, COLORS.BLACK);
-
-        // Sắp xếp các nước đi để tối ưu hóa cắt tỉa alpha-beta
-        moves.sort((a, b) => {
-            // Ưu tiên các nước đi ăn quân
-            const aCapture = board.getPiece(a.to.row, a.to.col) ? 1 : 0;
-            const bCapture = board.getPiece(b.to.row, b.to.col) ? 1 : 0;
-            return bCapture - aCapture;
-        });
-
-        for (const move of moves) {
-            const testBoard = board.clone();
-            testBoard.movePiece(move.from.row, move.from.col, move.to.row, move.to.col);
-
-            // Kiểm tra nếu nước đi này dẫn đến chiếu tướng cho AI
-            if (testBoard.isCheck(COLORS.BLACK)) {
-                continue;
-            }
-
-            const value = this.minimax(testBoard, this.difficulty - 1, alpha, beta, false);
-
-            if (value > bestValue) {
-                bestValue = value;
-                bestMove = move;
-            }
-        }
-
-        const endTime = Date.now();
-        console.log(`AI took ${endTime - startTime}ms to make a move with depth ${this.difficulty}`);
-
-        return bestMove;
-    }
-
-    minimax(board, depth, alpha, beta, maximizingPlayer) {
-        if (depth === 0 || board.isCheckmate(COLORS.WHITE) || board.isCheckmate(COLORS.BLACK)) {
-            return board.evaluate();
-        }
-
-        if (maximizingPlayer) {
-            let maxEval = -Infinity;
-            const moves = this.getAllPossibleMoves(board, COLORS.BLACK);
-
-            for (const move of moves) {
-                const testBoard = board.clone();
-                testBoard.movePiece(move.from.row, move.from.col, move.to.row, move.to.col);
-                
-                // Bỏ qua các nước đi dẫn đến chiếu tướng
-                if (testBoard.isCheck(COLORS.BLACK)) {
-                    continue;
-                }
-                
-                const eval = this.minimax(testBoard, depth - 1, alpha, beta, false);
-                maxEval = Math.max(maxEval, eval);
-                alpha = Math.max(alpha, eval);
-                if (beta <= alpha) break;
-            }
-            return maxEval;
-        } else {
-            let minEval = Infinity;
-            const moves = this.getAllPossibleMoves(board, COLORS.WHITE);
-
-            for (const move of moves) {
-                const testBoard = board.clone();
-                testBoard.movePiece(move.from.row, move.from.col, move.to.row, move.to.col);
-                
-                // Bỏ qua các nước đi dẫn đến chiếu tướng
-                if (testBoard.isCheck(COLORS.WHITE)) {
-                    continue;
-                }
-                
-                const eval = this.minimax(testBoard, depth - 1, alpha, beta, true);
-                minEval = Math.min(minEval, eval);
-                beta = Math.min(beta, eval);
-                if (beta <= alpha) break;
-            }
-            return minEval;
-        }
-    }
-
-    getAllPossibleMoves(board, color) {
-        const moves = [];
-
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                const piece = board.getPiece(row, col);
-                if (piece && piece.color === color) {
-                    const validMoves = board.calculateValidMoves(row, col);
-                    for (const move of validMoves) {
-                        moves.push({
-                            from: { row, col },
-                            to: { row: move.row, col: move.col }
-                        });
-                    }
-                }
-            }
-        }
-
-        return moves;
-    }
-
-    getHint(board) {
-        // Tìm nước đi tốt nhất cho người chơi
-        const moves = this.getAllPossibleMoves(board, COLORS.WHITE);
-        let bestMove = null;
-        let bestValue = -Infinity;
-
-        for (const move of moves) {
-            const testBoard = board.clone();
-            testBoard.movePiece(move.from.row, move.from.col, move.to.row, move.to.col);
-            
-            // Bỏ qua các nước đi dẫn đến chiếu tướng
-            if (testBoard.isCheck(COLORS.WHITE)) {
-                continue;
-            }
-            
-            const value = testBoard.evaluate();
-            if (value > bestValue) {
-                bestValue = value;
-                bestMove = move;
-            }
-        }
-
-        return bestMove;
-    }
-}
-
-// Lớp quản lý giao diện người dùng
-class ChessUI {
-    constructor() {
-        this.board = new ChessBoard();
-        this.ai = new ChessAI(3);
-        this.chessboardElement = document.getElementById('chessboard');
-        this.gameStatusElement = document.getElementById('gameStatus');
-        this.playerCapturedElement = document.getElementById('playerCaptured');
-        this.aiCapturedElement = document.getElementById('aiCaptured');
-        this.moveHistoryElement = document.getElementById('moveHistory');
-        this.playerInfoElement = document.getElementById('playerInfo');
-        this.aiInfoElement = document.getElementById('aiInfo');
-        this.difficultySelect = document.getElementById('difficulty');
-        
-        this.initializeEventListeners();
-        this.renderBoard();
-        this.updateUI();
-    }
-
-    initializeEventListeners() {
-        // Nút bắt đầu ván mới
-        document.getElementById('newGame').addEventListener('click', () => {
-            this.board = new ChessBoard();
-            this.renderBoard();
-            this.updateUI();
-        });
-
-        // Nút hoàn tác
-        document.getElementById('undoMove').addEventListener('click', () => {
-            if (this.board.undoMove()) {
-                this.renderBoard();
-                this.updateUI();
-            }
-        });
-
-        // Nút gợi ý
-        document.getElementById('hint').addEventListener('click', () => {
-            this.showHint();
-        });
-
-        // Thay đổi độ khó
-        this.difficultySelect.addEventListener('change', () => {
-            this.ai.setDifficulty(parseInt(this.difficultySelect.value));
-        });
-    }
-
-    renderBoard() {
-        this.chessboardElement.innerHTML = '';
-
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                const square = document.createElement('div');
-                square.className = `square ${(row + col) % 2 === 0 ? 'white' : 'black'}`;
-                square.dataset.row = row;
-                square.dataset.col = col;
-
-                // Đánh dấu ô được chọn
-                if (this.board.selectedPiece && 
-                    this.board.selectedPiece.row === row && 
-                    this.board.selectedPiece.col === col) {
-                    square.classList.add('selected');
-                }
-
-                // Đánh dấu các nước đi hợp lệ
-                const isValidMove = this.board.validMoves.some(move => 
-                    move.row === row && move.col === col
-                );
-                
-                if (isValidMove) {
-                    const targetPiece = this.board.getPiece(row, col);
-                    if (targetPiece) {
-                        square.classList.add('valid-capture');
-                    } else {
-                        square.classList.add('valid-move');
-                    }
-                }
-
-                // Thêm quân cờ nếu có
-                const piece = this.board.getPiece(row, col);
-                if (piece) {
-                    square.textContent = piece.getSymbol();
-                }
-
-                square.addEventListener('click', () => this.handleSquareClick(row, col));
-                this.chessboardElement.appendChild(square);
-            }
-        }
-    }
-
-    handleSquareClick(row, col) {
-        // Nếu đang là lượt của AI, bỏ qua
-        if (this.board.currentPlayer === COLORS.BLACK) return;
-
-        const piece = this.board.getPiece(row, col);
-
-        // Nếu đã chọn một quân cờ và click vào ô hợp lệ
-        if (this.board.selectedPiece) {
-            const moveSuccess = this.board.movePiece(
-                this.board.selectedPiece.row, 
-                this.board.selectedPiece.col, 
-                row, 
-                col
-            );
-
-            if (moveSuccess) {
-                this.renderBoard();
-                this.updateUI();
-
-                // Kiểm tra kết thúc trò chơi
-                if (this.board.isCheckmate(COLORS.BLACK)) {
-                    this.gameStatusElement.textContent = 'Bạn thắng!';
-                    return;
-                }
-
-                // Đến lượt AI
-                setTimeout(() => this.makeAIMove(), 500);
-            } else if (piece && piece.color === COLORS.WHITE) {
-                // Chọn quân cờ mới
-                this.board.selectPiece(row, col);
-                this.renderBoard();
-            } else {
-                // Bỏ chọn
-                this.board.selectedPiece = null;
-                this.board.validMoves = [];
-                this.renderBoard();
-            }
-        } else if (piece && piece.color === COLORS.WHITE) {
-            // Chọn quân cờ
-            this.board.selectPiece(row, col);
-            this.renderBoard();
-        }
-    }
-
-    makeAIMove() {
-        if (this.board.currentPlayer === COLORS.BLACK && !this.board.isCheckmate(COLORS.WHITE)) {
-            const bestMove = this.ai.getBestMove(this.board);
-            
-            if (bestMove) {
-                this.board.movePiece(
-                    bestMove.from.row,
-                    bestMove.from.col,
-                    bestMove.to.row,
-                    bestMove.to.col
-                );
-                
-                this.renderBoard();
-                this.updateUI();
-
-                // Kiểm tra kết thúc trò chơi
-                if (this.board.isCheckmate(COLORS.WHITE)) {
-                    this.gameStatusElement.textContent = 'AI thắng!';
-                }
-            }
-        }
-    }
-
-    showHint() {
-        if (this.board.currentPlayer === COLORS.WHITE) {
-            const hint = this.ai.getHint(this.board);
-            if (hint) {
-                // Làm nổi bật nước đi gợi ý
-                this.board.selectedPiece = {
-                    row: hint.from.row,
-                    col: hint.from.col,
-                    piece: this.board.getPiece(hint.from.row, hint.from.col)
-                };
-                this.board.validMoves = [{ row: hint.to.row, col: hint.to.col, capture: false }];
-                this.renderBoard();
-                
-                // Tự động bỏ chọn sau 2 giây
-                setTimeout(() => {
-                    this.board.selectedPiece = null;
-                    this.board.validMoves = [];
-                    this.renderBoard();
-                }, 2000);
-            }
-        }
-    }
-
-    updateUI() {
-        // Cập nhật trạng thái trò chơi
-        if (this.board.isCheckmate(COLORS.WHITE)) {
-            this.gameStatusElement.textContent = 'AI thắng!';
-        } else if (this.board.isCheckmate(COLORS.BLACK)) {
-            this.gameStatusElement.textContent = 'Bạn thắng!';
-        } else if (this.board.isCheck(COLORS.WHITE)) {
-            this.gameStatusElement.textContent = 'Bạn đang bị chiếu!';
-        } else if (this.board.isCheck(COLORS.BLACK)) {
-            this.gameStatusElement.textContent = 'AI đang bị chiếu!';
-        } else {
-            this.gameStatusElement.textContent = this.board.currentPlayer === COLORS.WHITE 
-                ? 'Lượt của bạn' 
-                : 'AI đang suy nghĩ...';
-        }
-
-        // Cập nhật thông tin người chơi
-        if (this.board.currentPlayer === COLORS.WHITE) {
-            this.playerInfoElement.classList.add('active');
-            this.aiInfoElement.classList.remove('active');
-        } else {
-            this.playerInfoElement.classList.remove('active');
-            this.aiInfoElement.classList.add('active');
-        }
-
-        // Cập nhật quân bị bắt
-        this.playerCapturedElement.innerHTML = '';
-        this.board.capturedPieces[COLORS.WHITE].forEach(piece => {
-            const capturedPiece = document.createElement('span');
-            capturedPiece.className = 'captured-piece';
-            capturedPiece.textContent = piece.getSymbol();
-            this.playerCapturedElement.appendChild(capturedPiece);
-        });
-
-        this.aiCapturedElement.innerHTML = '';
-        this.board.capturedPieces[COLORS.BLACK].forEach(piece => {
-            const capturedPiece = document.createElement('span');
-            capturedPiece.className = 'captured-piece';
-            capturedPiece.textContent = piece.getSymbol();
-            this.aiCapturedElement.appendChild(capturedPiece);
-        });
-
-        // Cập nhật lịch sử nước đi
-        this.moveHistoryElement.innerHTML = '';
-        this.board.moveHistory.forEach((move, index) => {
-            const moveElement = document.createElement('div');
-            moveElement.className = 'move';
-            
-            const fromSquare = this.getSquareName(move.from.row, move.from.col);
-            const toSquare = this.getSquareName(move.to.row, move.to.col);
-            
-            moveElement.textContent = `${fromSquare} → ${toSquare}`;
-            this.moveHistoryElement.appendChild(moveElement);
-        });
-    }
-
-    getSquareName(row, col) {
-        const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-        const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
-        return files[col] + ranks[row];
-    }
-}
-
-// Khởi tạo trò chơi khi trang được tải
-document.addEventListener('DOMContentLoaded', () => {
-    new ChessUI();
-});
+  init();
+})();
