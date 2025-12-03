@@ -3,33 +3,768 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cờ Vua với AI</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Cờ Vua Với AI</title>
+    <!-- Tải Tailwind CSS cho giao diện đẹp và phản hồi -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom CSS cho Canvas và font */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; /* Nền tối */
+            color: #e6e6e6;
+        }
+        #chess-board {
+            /* Đảm bảo canvas phản hồi và không bị kéo giãn */
+            max-width: 95vw; 
+            max-height: 95vh;
+            display: block;
+            margin: auto;
+            border: 4px solid #4a4a4a;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            touch-action: manipulation; /* Cải thiện trải nghiệm cảm ứng */
+        }
+        .container {
+            min-height: 100vh;
+        }
+        .btn-game {
+            transition: all 0.2s ease-in-out;
+            transform: scale(1);
+        }
+        .btn-game:hover {
+            transform: scale(1.03);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+    </style>
 </head>
-<body>
-    <div class="container">
-        <h1>Cờ Vua với AI</h1>
+<body class="p-4">
+    <div class="container flex flex-col items-center justify-center p-2 sm:p-4">
+        <h1 class="text-3xl sm:text-4xl font-extrabold mb-4 text-white text-center">
+            Chess - Cờ Vua (Chế Độ AI)
+        </h1>
+
+        <!-- Khu vực Trạng thái -->
+        <div id="status-display" class="w-full max-w-lg text-center p-3 mb-4 rounded-lg font-semibold text-lg bg-gray-700 shadow-md">
+            Lượt Trắng (White)
+        </div>
         
-        <div class="game-info">
-            <div id="turn-indicator">Lượt đi: <span id="current-player">Trắng</span></div>
-            <button onclick="resetGame()">Chơi lại</button>
+        <!-- Bàn Cờ Canvas -->
+        <div id="board-container" class="w-full max-w-lg aspect-square">
+            <canvas id="chess-board" class="w-full h-full"></canvas>
         </div>
 
-        <div class="board-container">
-            <div id="board"></div>
-        </div>
+        <!-- Khu vực Điều khiển -->
+        <div class="flex flex-col items-center mt-6 w-full max-w-sm space-y-3">
+            <div class="flex justify-between items-center w-full p-2 bg-gray-800 rounded-lg shadow-inner">
+                <span class="text-sm font-medium text-gray-300">Chơi với Máy (AI)</span>
+                <button id="toggle-ai-btn" class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none" role="switch" aria-checked="false">
+                    <span class="sr-only">Toggle AI Mode</span>
+                    <span id="ai-toggle-indicator" aria-hidden="true" class="pointer-events-none inline-block h-5 w-5 rounded-full bg-red-400 shadow transform ring-0 transition ease-in-out duration-200"></span>
+                </button>
+            </div>
 
-        <div class="rules">
-            <h3>Luật chơi:</h3>
-            <ul>
-                <li>Người chơi đi quân <strong>Trắng</strong></li>
-                <li>AI đi quân <strong>Đen</strong></li>
-                <li>Click vào quân cờ để xem nước đi hợp lệ</li>
-                <li>Click vào ô xanh để di chuyển</li>
-            </ul>
+            <button id="new-game-btn" class="btn-game w-full p-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-lg">
+                Ván Cờ Mới
+            </button>
+            <div class="text-xs text-gray-400 text-center p-2">
+                Chạm/Click để chọn quân, chạm/click lần nữa để di chuyển.
+            </div>
         </div>
+        
     </div>
 
-    <script src="script.js"></script>
+    <script>
+        // --- CHESS GAME LOGIC (JAVASCRIPT) ---
+        
+        // 1. INITIAL SETUP
+        const canvas = document.getElementById('chess-board');
+        const ctx = canvas.getContext('2d');
+        const statusDisplay = document.getElementById('status-display');
+        const newGameBtn = document.getElementById('new-game-btn');
+        const toggleAiBtn = document.getElementById('toggle-ai-btn');
+        const aiToggleIndicator = document.getElementById('ai-toggle-indicator');
+
+        const BOARD_SIZE = 8;
+        const LIGHT_SQUARE = '#f0d9b5'; // Màu ô sáng
+        const DARK_SQUARE = '#b58863';  // Màu ô tối
+        const SELECTED_SQUARE = '#55aaff'; // Màu ô được chọn
+        const HIGHLIGHT_SQUARE = '#a0ff55'; // Màu ô có thể di chuyển
+        const CHECK_SQUARE = '#ff4444'; // Màu ô Vua bị Chiếu
+        const LAST_MOVE_SQUARE = '#ffc400'; // Màu ô nước đi cuối cùng
+
+        let squareSize;
+        let board;
+        let turn; // 'white' or 'black'
+        let selectedPiece = null; // { row, col, piece }
+        let possibleMoves = [];
+        let isGameOver = false;
+        let isThinking = false; // Trạng thái AI đang tính toán
+        let isAIEnabled = false; // Mặc định chế độ 2 người chơi
+        let lastMove = null; // { fromR, fromC, toR, toC } - Nước đi cuối cùng
+        
+        const AI_PLAYER = 'black';
+        const AI_DEPTH = 2; // Độ sâu tìm kiếm Minimax.
+
+        // Unicode Chess Pieces (White/Black)
+        const PIECES = {
+            'K': '\u2654', 'Q': '\u2655', 'R': '\u2656', 'B': '\u2657', 'N': '\u2658', 'P': '\u2659',
+            'k': '\u265A', 'q': '\u265B', 'r': '\u265C', 'b': '\u265D', 'n': '\u265E', 'p': '\u265F'
+        };
+
+        // Standard chess board setup (FEN notation simplified)
+        function getInitialBoard() {
+            return [
+                ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'],
+                ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
+                [null, null, null, null, null, null, null, null],
+                [null, null, null, null, null, null, null, null],
+                [null, null, null, null, null, null, null, null],
+                [null, null, null, null, null, null, null, null],
+                ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
+                ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']
+            ];
+        }
+
+        // 2. GAME STATE MANAGEMENT
+        
+        function initGame() {
+            board = getInitialBoard();
+            turn = 'white';
+            selectedPiece = null;
+            possibleMoves = [];
+            isGameOver = false;
+            isThinking = false;
+            lastMove = null; // Reset nước đi cuối cùng
+            updateStatus('Lượt Trắng (White)');
+            // Set canvas size for responsive drawing
+            resizeCanvas();
+            drawBoard();
+        }
+
+        function updateStatus(message, color = 'text-white') {
+            statusDisplay.innerHTML = `<span class="${color}">${message}</span>`;
+            if (isThinking) {
+                 statusDisplay.classList.remove('bg-gray-700', 'bg-red-700', 'bg-blue-800');
+                 statusDisplay.classList.add('bg-yellow-600', 'text-black');
+            } else if (isGameOver) {
+                 statusDisplay.classList.remove('bg-gray-700', 'bg-blue-800');
+                 statusDisplay.classList.add('bg-red-700', 'text-white');
+            } else if (turn === 'white') {
+                statusDisplay.classList.remove('bg-gray-700', 'bg-red-700', 'bg-yellow-600');
+                statusDisplay.classList.add('bg-blue-800', 'text-white');
+            } else if (turn === 'black') {
+                statusDisplay.classList.remove('bg-red-700', 'bg-blue-800', 'bg-yellow-600');
+                statusDisplay.classList.add('bg-gray-700', 'text-white');
+            }
+        }
+        
+        // 3. DRAWING FUNCTIONS
+
+        function resizeCanvas() {
+            const container = document.getElementById('board-container');
+            const size = Math.min(container.clientWidth, container.clientHeight);
+            canvas.width = size;
+            canvas.height = size;
+            squareSize = canvas.width / BOARD_SIZE;
+            drawBoard();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        window.onload = initGame;
+
+        function drawBoard() {
+            // Tìm vị trí Vua để tô sáng ô bị Chiếu
+            const kingPos = findKing(turn, board);
+            const isCheck = kingPos && isKingInCheck(turn, board);
+
+            ctx.globalAlpha = isGameOver ? 0.7 : 1.0;
+
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    // Màu ô nền mặc định
+                    let color = (r + c) % 2 === 0 ? LIGHT_SQUARE : DARK_SQUARE;
+                    
+                    // 1. Highlight Nước Đi Cuối Cùng (Ưu tiên thấp)
+                    if (lastMove && (
+                        (r === lastMove.fromR && c === lastMove.fromC) || 
+                        (r === lastMove.toR && c === lastMove.toC)
+                    )) {
+                        color = LAST_MOVE_SQUARE;
+                    }
+
+                    // 2. Highlight Ô Được Chọn (Ưu tiên trung bình)
+                    if (selectedPiece && selectedPiece.row === r && selectedPiece.col === c) {
+                        color = SELECTED_SQUARE;
+                    }
+                    
+                    // 3. Highlight Ô Có Thể Di Chuyển (Ưu tiên trung bình)
+                    if (possibleMoves.some(move => move.r === r && move.c === c)) {
+                        color = HIGHLIGHT_SQUARE;
+                    }
+                    
+                    // 4. Highlight Vua Bị Chiếu (Ưu tiên cao nhất)
+                    if (isCheck && kingPos.r === r && kingPos.c === c) {
+                        color = CHECK_SQUARE;
+                    }
+
+                    ctx.fillStyle = color;
+                    ctx.fillRect(c * squareSize, r * squareSize, squareSize, squareSize);
+
+                    // Vẽ quân cờ
+                    const pieceCode = board[r][c];
+                    if (pieceCode) {
+                        const pieceChar = PIECES[pieceCode];
+                        const pieceColor = pieceCode === pieceCode.toUpperCase() ? '#FFFFFF' : '#000000'; 
+                        
+                        ctx.font = `${squareSize * 0.7}px serif`;
+                        ctx.fillStyle = pieceColor;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        
+                        const x = c * squareSize + squareSize / 2;
+                        const y = r * squareSize + squareSize / 2;
+                        
+                        ctx.fillText(pieceChar, x, y);
+                    }
+                }
+            }
+        }
+
+        // 4. MOVEMENT LOGIC (Core movement generation)
+
+        function isCurrentPlayerPiece(piece) {
+            if (!piece) return false;
+            const isWhite = piece === piece.toUpperCase();
+            return (turn === 'white' && isWhite) || (turn === 'black' && !isWhite);
+        }
+
+        function getPieceColor(piece) {
+            return piece === piece.toUpperCase() ? 'white' : 'black';
+        }
+
+        function isLegalTarget(targetPiece, pieceColor) {
+            if (!targetPiece) return true; // Empty square
+            return getPieceColor(targetPiece) !== pieceColor; // Opponent piece
+        }
+        
+        // Get moves for a piece on a given board. Does not check for 'check' safety.
+        function getMoves(r, c, piece, currentBoard) {
+            const moves = [];
+            const color = getPieceColor(piece);
+            const isWhite = color === 'white';
+            const type = piece.toLowerCase();
+
+            switch (type) {
+                case 'p': // Pawn
+                    const direction = isWhite ? -1 : 1;
+                    
+                    // 1. Single step forward (must be empty)
+                    let nr = r + direction;
+                    if (nr >= 0 && nr < BOARD_SIZE && !currentBoard[nr]?.[c]) {
+                        moves.push({ r: nr, c: c });
+                        
+                        // 2. Double step forward (from starting rank, must be empty)
+                        if ((isWhite && r === 6 || !isWhite && r === 1) && !currentBoard[r + direction * 2][c]) {
+                            moves.push({ r: r + direction * 2, c: c });
+                        }
+                    }
+
+                    // 3. Captures diagonally (must be opponent piece)
+                    [-1, 1].forEach(dc => {
+                        let nc = c + dc;
+                        if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+                            const target = currentBoard[nr][nc];
+                            if (target && getPieceColor(target) !== color) {
+                                moves.push({ r: nr, c: nc });
+                            }
+                        }
+                    });
+                    break;
+                
+                case 'r': // Rook
+                case 'b': // Bishop
+                case 'q': // Queen
+                    const directions = [];
+                    if (type === 'r' || type === 'q') directions.push({ dr: 0, dc: 1 }, { dr: 0, dc: -1 }, { dr: 1, dc: 0 }, { dr: -1, dc: 0 });
+                    if (type === 'b' || type === 'q') directions.push({ dr: 1, dc: 1 }, { dr: 1, dc: -1 }, { dr: -1, dc: 1 }, { dr: -1, dc: -1 });
+                    
+                    directions.forEach(({ dr, dc }) => {
+                        for (let i = 1; i < BOARD_SIZE; i++) {
+                            let nr = r + dr * i;
+                            let nc = c + dc * i;
+
+                            if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
+
+                            const target = currentBoard[nr][nc];
+                            
+                            if (!target) {
+                                moves.push({ r: nr, c: nc });
+                            } else {
+                                if (getPieceColor(target) !== color) {
+                                    moves.push({ r: nr, c: nc }); // Capture
+                                }
+                                break; // Blocked
+                            }
+                        }
+                    });
+                    break;
+
+                case 'n': // Knight
+                    const knightMoves = [
+                        { dr: 2, dc: 1 }, { dr: 2, dc: -1 }, { dr: -2, dc: 1 }, { dr: -2, dc: -1 },
+                        { dr: 1, dc: 2 }, { dr: 1, dc: -2 }, { dr: -1, dc: 2 }, { dr: -1, dc: -2 }
+                    ];
+                    knightMoves.forEach(({ dr, dc }) => {
+                        let nr = r + dr;
+                        let nc = c + dc;
+                        let target = currentBoard[nr]?.[nc];
+
+                        if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+                            if (isLegalTarget(target, color)) {
+                                moves.push({ r: nr, c: nc });
+                            }
+                        }
+                    });
+                    break;
+                
+                case 'k': // King
+                    const kingMoves = [
+                        { dr: 0, dc: 1 }, { dr: 0, dc: -1 }, { dr: 1, dc: 0 }, { dr: -1, dc: 0 },
+                        { dr: 1, dc: 1 }, { dr: 1, dc: -1 }, { dr: -1, dc: 1 }, { dr: -1, dc: -1 }
+                    ];
+                    kingMoves.forEach(({ dr, dc }) => {
+                        let nr = r + dr;
+                        let nc = c + dc;
+                        let target = currentBoard[nr]?.[nc];
+                        
+                        if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+                            if (isLegalTarget(target, color)) {
+                                moves.push({ r: nr, c: nc });
+                            }
+                        }
+                    });
+                    break;
+            }
+
+            return moves.map(move => ({ fromR: r, fromC: c, toR: move.r, toC: move.c }));
+        }
+
+        // 5. CHECK / CHECKMATE LOGIC
+
+        // Find the King's position for a given color
+        function findKing(color, currentBoard) {
+            const kingPiece = color === 'white' ? 'K' : 'k';
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if (currentBoard[r][c] === kingPiece) {
+                        return { r, c };
+                    }
+                }
+            }
+            return null;
+        }
+
+        // Helper: Get all squares attacked by a given piece type at (r, c) on currentBoard
+        function getAttackMovesForCheck(r, c, piece, currentBoard) {
+            const color = getPieceColor(piece);
+            const isWhite = color === 'white';
+            const type = piece.toLowerCase();
+            const moves = [];
+
+            if (type === 'p') {
+                // Pawns only attack diagonally
+                const direction = isWhite ? -1 : 1;
+                const nr = r + direction;
+                [-1, 1].forEach(dc => {
+                    const nc = c + dc;
+                    if (nc >= 0 && nc < BOARD_SIZE && nr >= 0 && nr < BOARD_SIZE) {
+                        moves.push({ r: nr, c: nc });
+                    }
+                });
+                return moves;
+            } else if (type === 'k') {
+                 // King's attack is the same as its move
+                 return getMoves(r, c, piece, currentBoard).map(m => ({ r: m.toR, c: m.toC }));
+            } else {
+                 // For all other pieces, the attacked squares are the squares they can move to.
+                 return getMoves(r, c, piece, currentBoard).map(m => ({ r: m.toR, c: m.toC }));
+            }
+        }
+
+        // Check if a specific square (r, c) is attacked by the opponent color
+        function isSquareAttacked(r, c, attackerColor, currentBoard) {
+            for (let ar = 0; ar < BOARD_SIZE; ar++) {
+                for (let ac = 0; ac < BOARD_SIZE; ac++) {
+                    const attackerPiece = currentBoard[ar][ac];
+                    if (attackerPiece && getPieceColor(attackerPiece) === attackerColor) {
+                        const attackMoves = getAttackMovesForCheck(ar, ac, attackerPiece, currentBoard);
+                        if (attackMoves.some(move => move.r === r && move.c === c)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+        
+        // Check if the given player's King is in Check
+        function isKingInCheck(color, currentBoard) {
+            const kingPos = findKing(color, currentBoard);
+            if (!kingPos) return false; 
+            
+            const opponentColor = color === 'white' ? 'black' : 'white';
+            return isSquareAttacked(kingPos.r, kingPos.c, opponentColor, currentBoard);
+        }
+
+        // Filters moves: Only allow moves that do not result in the King being in check
+        function filterLegalMoves(allMoves, boardSnapshot, playerColor) {
+            const legalMoves = [];
+
+            allMoves.forEach(move => {
+                const newBoard = JSON.parse(JSON.stringify(boardSnapshot)); // Deep copy
+                const piece = newBoard[move.fromR][move.fromC];
+                
+                // Perform the hypothetical move
+                newBoard[move.toR][move.toC] = piece;
+                newBoard[move.fromR][move.fromC] = null;
+
+                // If King is NOT in check after the move, it's legal
+                if (!isKingInCheck(playerColor, newBoard)) {
+                    legalMoves.push(move);
+                }
+            });
+
+            return legalMoves;
+        }
+        
+        // Get all legal moves for a given player on a given board
+        function getAllLegalMoves(playerColor, currentBoard) {
+            let allPotentialMoves = [];
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const piece = currentBoard[r][c];
+                    if (piece && getPieceColor(piece) === playerColor) {
+                        allPotentialMoves.push(...getMoves(r, c, piece, currentBoard));
+                    }
+                }
+            }
+            // Filter out moves that leave the king in check
+            return filterLegalMoves(allPotentialMoves, currentBoard, playerColor);
+        }
+
+        // Check if there are any legal moves left for the current player
+        function isCheckmateOrStalemate(currentColor) {
+            const legalMoves = getAllLegalMoves(currentColor, board);
+            
+            if (legalMoves.length === 0) {
+                isGameOver = true;
+                if (isKingInCheck(currentColor, board)) {
+                    updateStatus(`CHIẾU TƯỚNG! ${currentColor.toUpperCase()} thua!`, 'text-red-500 font-bold');
+                    return 'checkmate';
+                } else {
+                    updateStatus('HÒA (Stalemate)! Không còn nước đi hợp lệ.', 'text-yellow-500 font-bold');
+                    return 'stalemate';
+                }
+            }
+            return false;
+        }
+
+        // 6. AI LOGIC (MINIMAX)
+
+        const PIECE_VALUES = { 'P': 10, 'N': 30, 'B': 30, 'R': 50, 'Q': 90, 'K': 900, 
+                               'p': -10, 'n': -30, 'b': -30, 'r': -50, 'q': -90, 'k': -900 };
+
+        // Hàm đánh giá (chỉ dựa trên chênh lệch vật chất)
+        function evaluateBoard(currentBoard) {
+            let score = 0;
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const piece = currentBoard[r][c];
+                    if (piece) {
+                        score += PIECE_VALUES[piece];
+                    }
+                }
+            }
+            return score;
+        }
+        
+        // Thuật toán Minimax
+        function minimax(currentBoard, depth, isMaximizingPlayer) {
+            if (depth === 0 || isGameOver) {
+                return evaluateBoard(currentBoard);
+            }
+
+            const playerColor = isMaximizingPlayer ? 'white' : 'black';
+            const legalMoves = getAllLegalMoves(playerColor, currentBoard);
+
+            if (legalMoves.length === 0) {
+                if (isKingInCheck(playerColor, currentBoard)) {
+                    return isMaximizingPlayer ? -Infinity : Infinity; 
+                }
+                return 0; // Hòa (Stalemate)
+            }
+
+            let bestValue = isMaximizingPlayer ? -Infinity : Infinity;
+
+            for (const move of legalMoves) {
+                const newBoard = JSON.parse(JSON.stringify(currentBoard));
+                const piece = newBoard[move.fromR][move.fromC];
+                newBoard[move.toR][move.toC] = piece;
+                newBoard[move.fromR][move.fromC] = null;
+                
+                // Giả định Thăng cấp Tốt (luôn lên Hậu)
+                if (piece.toLowerCase() === 'p' && move.toR === (isMaximizingPlayer ? 0 : 7)) {
+                    newBoard[move.toR][move.toC] = isMaximizingPlayer ? 'Q' : 'q';
+                }
+
+
+                const value = minimax(newBoard, depth - 1, !isMaximizingPlayer);
+
+                if (isMaximizingPlayer) {
+                    bestValue = Math.max(bestValue, value);
+                } else {
+                    bestValue = Math.min(bestValue, value);
+                }
+            }
+
+            return bestValue;
+        }
+
+        // Tìm nước đi tốt nhất cho AI (quân Đen)
+        function findBestMove(currentBoard, depth) {
+            let bestMove = null;
+            let bestValue = Infinity; // AI (Black) là người chơi Minimizing
+            
+            const legalMoves = getAllLegalMoves(AI_PLAYER, currentBoard);
+            
+            // Xáo trộn danh sách nước đi
+            legalMoves.sort(() => Math.random() - 0.5); 
+
+            for (const move of legalMoves) {
+                const newBoard = JSON.parse(JSON.stringify(currentBoard));
+                const piece = newBoard[move.fromR][move.fromC];
+                newBoard[move.toR][move.toC] = piece;
+                newBoard[move.fromR][move.fromC] = null;
+                
+                // Giả định Thăng cấp Tốt
+                if (piece.toLowerCase() === 'p' && move.toR === 7) {
+                    newBoard[move.toR][move.toC] = 'q';
+                }
+                
+                // Gọi minimax cho lượt của Trắng (Maximizing)
+                const boardValue = minimax(newBoard, depth - 1, true);
+
+                if (boardValue < bestValue) {
+                    bestValue = boardValue;
+                    bestMove = move;
+                }
+            }
+
+            return bestMove;
+        }
+
+        function triggerAIMove() {
+            if (isGameOver || turn !== AI_PLAYER || !isAIEnabled) return;
+            
+            isThinking = true;
+            updateStatus('AI đang suy nghĩ...', 'text-black');
+            drawBoard(); // Cập nhật trạng thái 'thinking'
+
+            // Dùng setTimeout để không làm đóng băng trình duyệt và cho phép UI cập nhật
+            setTimeout(() => {
+                const bestMove = findBestMove(board, AI_DEPTH);
+                isThinking = false;
+
+                if (bestMove) {
+                    // Thực hiện nước đi tốt nhất
+                    executeMove(bestMove.fromR, bestMove.fromC, bestMove.toR, bestMove.toC);
+                    
+                    // Chuyển lượt
+                    turn = 'white';
+                    
+                    // Kiểm tra kết thúc game
+                    if (!isCheckmateOrStalemate('white')) {
+                        let statusMsg = `Lượt Trắng (White)`;
+                        if (isKingInCheck('white', board)) {
+                             statusMsg += ' - CHIẾU (Check)!';
+                        }
+                        updateStatus(statusMsg);
+                    }
+                    
+                } else {
+                    // Xử lý trường hợp không còn nước đi
+                    isCheckmateOrStalemate(AI_PLAYER); 
+                }
+                drawBoard();
+            }, 200); // Tăng độ trễ lên 200ms để người dùng kịp nhìn thấy highlight
+        }
+
+        // 7. GAME FLOW CONTROL
+
+        function executeMove(fromR, fromC, toR, toC) {
+            const piece = board[fromR][fromC];
+            
+            // Move the piece
+            board[toR][toC] = piece;
+            board[fromR][fromC] = null;
+
+            // Lưu lại nước đi cuối cùng
+            lastMove = { fromR, fromC, toR, toC }; 
+            
+            // Pawn Promotion (to Queen)
+            if (piece.toLowerCase() === 'p') {
+                if (piece === 'P' && toR === 0) { // White pawn to rank 1
+                    board[toR][toC] = 'Q';
+                } else if (piece === 'p' && toR === 7) { // Black pawn to rank 8
+                    board[toR][toC] = 'q';
+                }
+            }
+        }
+
+        function selectPiece(r, c, piece) {
+            selectedPiece = { row: r, col: c, piece: piece };
+            
+            // Lấy tất cả các nước đi hợp lệ cho quân cờ đã chọn
+            const allMoves = getMoves(r, c, piece, board);
+            possibleMoves = filterLegalMoves(allMoves, board, turn).map(m => ({ r: m.toR, c: m.toC }));
+        }
+        
+        // 8. EVENT HANDLING (Click/Tap)
+
+        canvas.addEventListener('click', handleMove);
+        canvas.addEventListener('touchstart', handleMove, { passive: false });
+
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            let clientX, clientY;
+
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            const col = Math.floor(x / squareSize);
+            const row = Math.floor(y / squareSize);
+            
+            return { row, col };
+        }
+
+        function handleMove(event) {
+            if (isGameOver || isThinking) return;
+            if (isAIEnabled && turn === AI_PLAYER) return; // Không cho phép người chơi click khi là lượt AI
+            
+            event.preventDefault(); 
+
+            const { row, col } = getMousePos(event);
+            const piece = board[row][col];
+
+            if (selectedPiece) {
+                // Case 1: Đã chọn quân. Kiểm tra xem ô đích có hợp lệ không.
+                const targetMove = possibleMoves.find(move => move.r === row && move.c === col);
+                
+                if (targetMove) {
+                    // Thực hiện nước đi
+                    executeMove(selectedPiece.row, selectedPiece.col, row, col);
+                    
+                    // Reset lựa chọn
+                    selectedPiece = null;
+                    possibleMoves = [];
+                    
+                    // Chuyển lượt
+                    turn = turn === 'white' ? 'black' : 'white';
+                    
+                    // Kiểm tra kết thúc game
+                    if (!isCheckmateOrStalemate(turn)) {
+                         // Cập nhật trạng thái cho lượt tiếp theo
+                        const statusColor = turn === 'white' ? 'Trắng' : 'Đen';
+                        let statusMsg = `Lượt ${statusColor} (${turn.charAt(0).toUpperCase() + turn.slice(1)})`;
+                        
+                        if (isKingInCheck(turn, board)) {
+                             statusMsg += ' - CHIẾU (Check)!';
+                             statusDisplay.classList.add('bg-red-700');
+                        } else {
+                             statusDisplay.classList.remove('bg-red-700');
+                        }
+                        updateStatus(statusMsg);
+                    }
+                    
+                    drawBoard();
+                    
+                    // Kích hoạt AI nếu đang bật và là lượt AI
+                    if (isAIEnabled && turn === AI_PLAYER && !isGameOver) {
+                        triggerAIMove();
+                    }
+
+                } else if (isCurrentPlayerPiece(piece)) {
+                    // Case 2: Click vào quân cờ phe ta (thay đổi lựa chọn)
+                    selectPiece(row, col, piece);
+                } else {
+                    // Case 3: Click vào ô không hợp lệ (hủy chọn)
+                    selectedPiece = null;
+                    possibleMoves = [];
+                }
+            } else if (isCurrentPlayerPiece(piece)) {
+                // Case 4: Chưa chọn quân. Click vào quân cờ phe ta (chọn nó).
+                selectPiece(row, col, piece);
+            }
+            
+            drawBoard();
+        }
+
+        // 9. UI & INITIALIZATION
+
+        // Toggle AI Mode
+        toggleAiBtn.addEventListener('click', () => {
+            isAIEnabled = !isAIEnabled;
+            aiToggleIndicator.classList.toggle('translate-x-5', isAIEnabled);
+            aiToggleIndicator.classList.toggle('bg-red-400', !isAIEnabled);
+            aiToggleIndicator.classList.toggle('bg-green-400', isAIEnabled);
+            toggleAiBtn.classList.toggle('bg-gray-700', !isAIEnabled);
+            toggleAiBtn.classList.toggle('bg-green-600', isAIEnabled);
+            
+            if (isAIEnabled) {
+                alert('Chế độ AI đã BẬT. Bạn chơi quân Trắng (White), AI chơi quân Đen (Black).');
+            } else {
+                 alert('Chế độ AI đã TẮT. Chơi chế độ 2 người chơi.');
+            }
+            
+            // Nếu là lượt AI và AI vừa được bật, kích hoạt AI
+            if (isAIEnabled && turn === AI_PLAYER && !isGameOver) {
+                 triggerAIMove();
+            }
+        });
+        
+        // Custom alert function (since window.alert is disallowed)
+        function alert(message) {
+            console.log("Alert:", message);
+            statusDisplay.innerHTML = `<span class="text-yellow-300 font-bold">${message}</span>`;
+            statusDisplay.classList.add('bg-gray-800');
+            setTimeout(() => {
+                if (!isGameOver) {
+                    const statusColor = turn === 'white' ? 'Trắng' : 'Đen';
+                    let statusMsg = `Lượt ${statusColor} (${turn.charAt(0).toUpperCase() + turn.slice(1)})`;
+                    if (isKingInCheck(turn, board)) {
+                         statusMsg += ' - CHIẾU (Check)!';
+                    }
+                    updateStatus(statusMsg);
+                }
+            }, 3000);
+        }
+
+        // New Game button handler
+        newGameBtn.addEventListener('click', initGame);
+
+        // Initial setup on load
+        initGame();
+        resizeCanvas();
+        
+    </script>
 </body>
 </html>
+
