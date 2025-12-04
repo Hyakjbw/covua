@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cờ Vua Với AI</title>
+    <title>Cờ Vua Với AI - Cập Nhật Highlight Viền</title>
     <!-- Tải Tailwind CSS cho giao diện đẹp và phản hồi -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -57,7 +57,7 @@
         <div class="flex flex-col items-center mt-6 w-full max-w-sm space-y-3">
             <div class="flex justify-between items-center w-full p-2 bg-gray-800 rounded-lg shadow-inner">
                 <span class="text-sm font-medium text-gray-300">Chơi với Máy (AI)</span>
-                <button id="toggle-ai-btn" class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none" role="switch" aria-checked="false">
+                <button id="toggle-ai-btn" class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none bg-gray-700" role="switch" aria-checked="false">
                     <span class="sr-only">Toggle AI Mode</span>
                     <span id="ai-toggle-indicator" aria-hidden="true" class="pointer-events-none inline-block h-5 w-5 rounded-full bg-red-400 shadow transform ring-0 transition ease-in-out duration-200"></span>
                 </button>
@@ -88,9 +88,12 @@
         const LIGHT_SQUARE = '#f0d9b5'; // Màu ô sáng
         const DARK_SQUARE = '#b58863';  // Màu ô tối
         const SELECTED_SQUARE = '#55aaff'; // Màu ô được chọn
-        const HIGHLIGHT_SQUARE = '#a0ff55'; // Màu ô có thể di chuyển
         const CHECK_SQUARE = '#ff4444'; // Màu ô Vua bị Chiếu
         const LAST_MOVE_SQUARE = '#ffc400'; // Màu ô nước đi cuối cùng
+
+        // --- CÁC HẰNG SỐ MỚI ĐỂ VẼ VIỀN HIGHLIGHT (Theo yêu cầu) ---
+        const MOVE_BORDER_COLOR = '#10b981'; // Xanh lá cây (Green)
+        const MOVE_BORDER_WIDTH = 4;        // Độ dày viền
 
         let squareSize;
         let board;
@@ -101,9 +104,11 @@
         let isThinking = false; // Trạng thái AI đang tính toán
         let isAIEnabled = false; // Mặc định chế độ 2 người chơi
         let lastMove = null; // { fromR, fromC, toR, toC } - Nước đi cuối cùng
+        let castlingRights; // { wK: true, wQ: true, bK: true, bQ: true }
+
         
         const AI_PLAYER = 'black';
-        const AI_DEPTH = 2; // Độ sâu tìm kiếm Minimax.
+        const AI_DEPTH = 3; 
 
         // Unicode Chess Pieces (White/Black)
         const PIECES = {
@@ -135,6 +140,9 @@
             isGameOver = false;
             isThinking = false;
             lastMove = null; // Reset nước đi cuối cùng
+            // Thiết lập quyền nhập thành ban đầu
+            castlingRights = { wK: true, wQ: true, bK: true, bQ: true }; 
+
             updateStatus('Lượt Trắng (White)');
             // Set canvas size for responsive drawing
             resizeCanvas();
@@ -189,7 +197,8 @@
                         (r === lastMove.fromR && c === lastMove.fromC) || 
                         (r === lastMove.toR && c === lastMove.toC)
                     )) {
-                        color = LAST_MOVE_SQUARE;
+                        // Vẫn tô nền màu vàng cho nước đi cuối cùng (ô đã đánh)
+                        color = LAST_MOVE_SQUARE; 
                     }
 
                     // 2. Highlight Ô Được Chọn (Ưu tiên trung bình)
@@ -197,23 +206,41 @@
                         color = SELECTED_SQUARE;
                     }
                     
-                    // 3. Highlight Ô Có Thể Di Chuyển (Ưu tiên trung bình)
-                    if (possibleMoves.some(move => move.r === r && move.c === c)) {
-                        color = HIGHLIGHT_SQUARE;
-                    }
+                    // 3. Xóa logic tô màu nền cho `possibleMoves` ở đây!
+                    // if (possibleMoves.some(move => move.r === r && move.c === c)) {
+                    //     color = HIGHLIGHT_SQUARE; 
+                    // }
                     
                     // 4. Highlight Vua Bị Chiếu (Ưu tiên cao nhất)
                     if (isCheck && kingPos.r === r && kingPos.c === c) {
                         color = CHECK_SQUARE;
                     }
 
+                    // VẼ NỀN Ô CỜ (BASE COLOR + LAST MOVE + SELECTED + CHECK)
                     ctx.fillStyle = color;
                     ctx.fillRect(c * squareSize, r * squareSize, squareSize, squareSize);
+
+                    // --- VẼ VIỀN XANH LÁ CHO Ô CÓ THỂ DI CHUYỂN (NEW REQUIREMENT) ---
+                    if (possibleMoves.some(move => move.r === r && move.c === c)) {
+                        ctx.strokeStyle = MOVE_BORDER_COLOR; // Xanh lá
+                        ctx.lineWidth = MOVE_BORDER_WIDTH;
+                        
+                        // Vẽ hình chữ nhật rỗng (strokeRect) để tạo viền
+                        // Tính toán để viền nằm bên trong ô cờ
+                        ctx.strokeRect(
+                            c * squareSize + MOVE_BORDER_WIDTH / 2, 
+                            r * squareSize + MOVE_BORDER_WIDTH / 2, 
+                            squareSize - MOVE_BORDER_WIDTH, 
+                            squareSize - MOVE_BORDER_WIDTH
+                        );
+                    }
+
 
                     // Vẽ quân cờ
                     const pieceCode = board[r][c];
                     if (pieceCode) {
                         const pieceChar = PIECES[pieceCode];
+                        // Màu quân cờ: Trắng là trắng, Đen là đen
                         const pieceColor = pieceCode === pieceCode.toUpperCase() ? '#FFFFFF' : '#000000'; 
                         
                         ctx.font = `${squareSize * 0.7}px serif`;
@@ -231,7 +258,8 @@
         }
 
         // 4. MOVEMENT LOGIC (Core movement generation)
-
+        // ... (Giữ nguyên logic di chuyển, kiểm tra chiếu, AI)
+        
         function isCurrentPlayerPiece(piece) {
             if (!piece) return false;
             const isWhite = piece === piece.toUpperCase();
@@ -240,6 +268,10 @@
 
         function getPieceColor(piece) {
             return piece === piece.toUpperCase() ? 'white' : 'black';
+        }
+
+        function getOpponentColor(color) {
+            return color === 'white' ? 'black' : 'white';
         }
 
         function isLegalTarget(targetPiece, pieceColor) {
@@ -251,6 +283,7 @@
         function getMoves(r, c, piece, currentBoard) {
             const moves = [];
             const color = getPieceColor(piece);
+            const opponentColor = getOpponentColor(color);
             const isWhite = color === 'white';
             const type = piece.toLowerCase();
 
@@ -343,10 +376,50 @@
                             }
                         }
                     });
+                    
+                    // --- LOGIC NHẬP THÀNH (CASTLING) ---
+                    // Phải đảm bảo King đang ở vị trí ban đầu (e1 hoặc e8)
+                    const startRank = isWhite ? 7 : 0;
+
+                    if (r === startRank && c === 4 && !isKingInCheck(color, currentBoard)) {
+                        
+                        // 1. Nhập thành VUA (King-side Castling - O-O)
+                        if (castlingRights[isWhite ? 'wK' : 'bK']) {
+                            // Ô F (c=5) và G (c=6) trống
+                            if (!currentBoard[r][5] && !currentBoard[r][6]) {
+                                // Ô F và G không bị tấn công (Vua không đi qua ô bị chiếu)
+                                if (!isSquareAttacked(r, 5, opponentColor, currentBoard) && 
+                                    !isSquareAttacked(r, 6, opponentColor, currentBoard)) {
+                                    
+                                    // Nước đi nhập thành: Vua di chuyển hai ô
+                                    moves.push({ r: r, c: 6, isCastling: true, castleSide: 'K' }); 
+                                }
+                            }
+                        }
+
+                        // 2. Nhập thành HẬU (Queen-side Castling - O-O-O)
+                        if (castlingRights[isWhite ? 'wQ' : 'bQ']) {
+                            // Ô D (c=3), C (c=2), B (c=1) trống
+                            if (!currentBoard[r][3] && !currentBoard[r][2] && !currentBoard[r][1]) {
+                                // Ô D và C không bị tấn công
+                                if (!isSquareAttacked(r, 3, opponentColor, currentBoard) && 
+                                    !isSquareAttacked(r, 2, opponentColor, currentBoard)) {
+                                    
+                                    // Nước đi nhập thành: Vua di chuyển hai ô
+                                    moves.push({ r: r, c: 2, isCastling: true, castleSide: 'Q' });
+                                }
+                            }
+                        }
+                    }
                     break;
             }
 
-            return moves.map(move => ({ fromR: r, fromC: c, toR: move.r, toC: move.c }));
+            // Đảm bảo thông tin nhập thành được truyền qua
+            return moves.map(move => ({ 
+                fromR: r, fromC: c, toR: move.r, toC: move.c, 
+                isCastling: move.isCastling || false, // Thêm cờ nhập thành
+                castleSide: move.castleSide || null
+            }));
         }
 
         // 5. CHECK / CHECKMATE LOGIC
@@ -383,8 +456,19 @@
                 });
                 return moves;
             } else if (type === 'k') {
-                 // King's attack is the same as its move
-                 return getMoves(r, c, piece, currentBoard).map(m => ({ r: m.toR, c: m.toC }));
+                 // King's attack is the same as its move (8 directions)
+                 const kingMoves = [
+                    { dr: 0, dc: 1 }, { dr: 0, dc: -1 }, { dr: 1, dc: 0 }, { dr: -1, dc: 0 },
+                    { dr: 1, dc: 1 }, { dr: 1, dc: -1 }, { dr: -1, dc: 1 }, { dr: -1, dc: -1 }
+                ];
+                kingMoves.forEach(({ dr, dc }) => {
+                    let nr = r + dr;
+                    let nc = c + dc;
+                    if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+                         moves.push({ r: nr, c: nc });
+                    }
+                });
+                return moves;
             } else {
                  // For all other pieces, the attacked squares are the squares they can move to.
                  return getMoves(r, c, piece, currentBoard).map(m => ({ r: m.toR, c: m.toC }));
@@ -419,20 +503,64 @@
         // Filters moves: Only allow moves that do not result in the King being in check
         function filterLegalMoves(allMoves, boardSnapshot, playerColor) {
             const legalMoves = [];
+            const originalCastlingRights = JSON.parse(JSON.stringify(castlingRights)); // Backup
 
             allMoves.forEach(move => {
                 const newBoard = JSON.parse(JSON.stringify(boardSnapshot)); // Deep copy
+                
+                // Cần tạm thời cập nhật castlingRights cho bước đi giả định
+                // Đây là một cách đơn giản hóa:
+                let tempCastlingRights = JSON.parse(JSON.stringify(castlingRights));
+
                 const piece = newBoard[move.fromR][move.fromC];
                 
-                // Perform the hypothetical move
+                // Thực hiện nước đi giả định (bao gồm cả nhập thành)
+                if (move.isCastling) {
+                    const rookR = move.fromR;
+                    let rookFromC, rookToC;
+                    
+                    if (move.castleSide === 'K') { rookFromC = 7; rookToC = 5; } 
+                    else if (move.castleSide === 'Q') { rookFromC = 0; rookToC = 3; }
+                    
+                    const rookPiece = newBoard[rookR][rookFromC];
+                    newBoard[rookR][rookToC] = rookPiece; // Rook moves
+                    newBoard[rookR][rookFromC] = null;    // Clear old Rook position
+                    
+                    // Cập nhật quyền nhập thành giả định
+                    if (playerColor === 'white') {
+                        tempCastlingRights.wK = false;
+                        tempCastlingRights.wQ = false;
+                    } else {
+                        tempCastlingRights.bK = false;
+                        tempCastlingRights.bQ = false;
+                    }
+
+                }
+                
+                // Di chuyển quân cờ
                 newBoard[move.toR][move.toC] = piece;
                 newBoard[move.fromR][move.fromC] = null;
 
-                // If King is NOT in check after the move, it's legal
+                // Nếu King là 'K' hoặc 'k', cần tạm thời cập nhật King's castling rights
+                if (piece.toUpperCase() === 'K') {
+                    if (playerColor === 'white') {
+                        tempCastlingRights.wK = false;
+                        tempCastlingRights.wQ = false;
+                    } else {
+                        tempCastlingRights.bK = false;
+                        tempCastlingRights.bQ = false;
+                    }
+                }
+
+                // Nếu King is NOT in check after the move, it's legal
+                // LƯU Ý: Không dùng tempCastlingRights để check, vì isKingInCheck chỉ cần newBoard
                 if (!isKingInCheck(playerColor, newBoard)) {
                     legalMoves.push(move);
                 }
             });
+
+            // Quan trọng: Đảm bảo castlingRights toàn cục không bị thay đổi
+            castlingRights = originalCastlingRights; 
 
             return legalMoves;
         }
@@ -444,6 +572,7 @@
                 for (let c = 0; c < BOARD_SIZE; c++) {
                     const piece = currentBoard[r][c];
                     if (piece && getPieceColor(piece) === playerColor) {
+                        // Gọi getMoves để lấy các thông tin đặc biệt (như castling)
                         allPotentialMoves.push(...getMoves(r, c, piece, currentBoard));
                     }
                 }
@@ -471,10 +600,38 @@
 
         // 6. AI LOGIC (MINIMAX)
 
-        const PIECE_VALUES = { 'P': 10, 'N': 30, 'B': 30, 'R': 50, 'Q': 90, 'K': 900, 
-                               'p': -10, 'n': -30, 'b': -30, 'r': -50, 'q': -90, 'k': -900 };
+        // Piece Values
+        const PIECE_VALUES = { 
+            'P': 100, 'N': 320, 'B': 330, 'R': 500, 'Q': 900, 'K': 20000, 
+            'p': -100, 'n': -320, 'b': -330, 'r': -500, 'q': -900, 'k': -20000 
+        };
 
-        // Hàm đánh giá (chỉ dựa trên chênh lệch vật chất)
+        // Piece-Square Tables (Nâng cấp AI với positional awareness)
+        const PAWN_PST = [
+            [0, 0, 0, 0, 0, 0, 0, 0], [5, 5, 5, 5, 5, 5, 5, 5], [1, 1, 2, 3, 3, 2, 1, 1],
+            [0.5, 0.5, 1, 2.5, 2.5, 1, 0.5, 0.5], [0, 0, 0, 2, 2, 0, 0, 0], [0.5, -0.5, -1, 0, 0, -1, -0.5, 0.5],
+            [0.5, 1, 1, -2, -2, 1, 1, 0.5], [0, 0, 0, 0, 0, 0, 0, 0]
+        ].map(row => row.map(val => val * 10)); // Scale to PIECE_VALUES
+
+        const KNIGHT_PST = [
+            [-5, -4, -3, -3, -3, -3, -4, -5], [-4, -2, 0, 0.5, 0.5, 0, -2, -4], [-3, 0.5, 1, 1.5, 1.5, 1, 0.5, -3],
+            [-3, 0, 1.5, 2, 2, 1.5, 0, -3], [-3, 0.5, 1.5, 2, 2, 1.5, 0.5, -3], [-3, 0, 1, 1.5, 1.5, 1, 0, -3],
+            [-4, -2, 0, 0, 0, 0, -2, -4], [-5, -4, -3, -3, -3, -3, -4, -5]
+        ].map(row => row.map(val => val * 10));
+
+        const BISHOP_PST = [
+            [-2, -1, -1, -1, -1, -1, -1, -2], [-1, 0, 0, 0, 0, 0, 0, -1], [-1, 0, 0.5, 1, 1, 0.5, 0, -1],
+            [-1, 0.5, 0.5, 1, 1, 0.5, 0.5, -1], [-1, 0, 1, 1, 1, 1, 0, -1], [-1, 1, 1, 1, 1, 1, 1, -1],
+            [-1, 0.5, 0, 0, 0, 0, 0.5, -1], [-2, -1, -1, -1, -1, -1, -1, -2]
+        ].map(row => row.map(val => val * 10));
+
+        const KING_PST_MID = [
+            [-3, -4, -4, -5, -5, -4, -4, -3], [-3, -4, -4, -5, -5, -4, -4, -3], [-3, -4, -4, -5, -5, -4, -4, -3],
+            [-3, -4, -4, -5, -5, -4, -4, -3], [-2, -3, -3, -4, -4, -3, -3, -2], [-1, -2, -2, -2, -2, -2, -2, -1],
+            [2, 2, 0, 0, 0, 0, 2, 2], [2, 3, 1, 0, 0, 1, 3, 2]
+        ].map(row => row.map(val => val * 10));
+        
+        // Hàm đánh giá (vật chất + vị trí)
         function evaluateBoard(currentBoard) {
             let score = 0;
             for (let r = 0; r < BOARD_SIZE; r++) {
@@ -482,6 +639,26 @@
                     const piece = currentBoard[r][c];
                     if (piece) {
                         score += PIECE_VALUES[piece];
+                        
+                        // Thêm điểm Vị Trí
+                        const isWhite = getPieceColor(piece) === 'white';
+                        const type = piece.toLowerCase();
+                        
+                        let pst = [];
+                        // Lật hàng cho quân Đen
+                        let pr = isWhite ? r : 7 - r; 
+                        
+                        switch (type) {
+                            case 'p': pst = PAWN_PST; break;
+                            case 'n': pst = KNIGHT_PST; break;
+                            case 'b': pst = BISHOP_PST; break;
+                            case 'k': pst = KING_PST_MID; break;
+                            default: continue; 
+                        }
+                        
+                        // Điểm PST là dương cho Trắng, âm cho Đen
+                        const pstScore = pst[pr][c];
+                        score += isWhite ? pstScore : -pstScore;
                     }
                 }
             }
@@ -489,7 +666,7 @@
         }
         
         // Thuật toán Minimax
-        function minimax(currentBoard, depth, isMaximizingPlayer) {
+        function minimax(currentBoard, depth, isMaximizingPlayer, alpha, beta) {
             if (depth === 0 || isGameOver) {
                 return evaluateBoard(currentBoard);
             }
@@ -509,21 +686,67 @@
             for (const move of legalMoves) {
                 const newBoard = JSON.parse(JSON.stringify(currentBoard));
                 const piece = newBoard[move.fromR][move.fromC];
+                
+                // Cần tạm thời sao chép castlingRights cho bước đi giả định
+                const originalCastlingRights = JSON.parse(JSON.stringify(castlingRights));
+
+                // 1. Xử lý Nhập Thành giả định
+                if (move.isCastling) {
+                    const rookR = move.fromR;
+                    let rookFromC, rookToC;
+                    if (move.castleSide === 'K') { rookFromC = 7; rookToC = 5; } 
+                    else if (move.castleSide === 'Q') { rookFromC = 0; rookToC = 3; }
+                    
+                    const rookPiece = newBoard[rookR][rookFromC];
+                    newBoard[rookR][rookToC] = rookPiece; 
+                    newBoard[rookR][rookFromC] = null;    
+                    // Cập nhật quyền nhập thành giả định
+                    if (playerColor === 'white') {
+                        castlingRights.wK = false; castlingRights.wQ = false;
+                    } else {
+                        castlingRights.bK = false; castlingRights.bQ = false;
+                    }
+                }
+                
+                // 2. Thực hiện nước đi quân chính
                 newBoard[move.toR][move.toC] = piece;
                 newBoard[move.fromR][move.fromC] = null;
                 
-                // Giả định Thăng cấp Tốt (luôn lên Hậu)
+                // 3. Xử lý Thăng cấp Tốt giả định (luôn lên Hậu)
                 if (piece.toLowerCase() === 'p' && move.toR === (isMaximizingPlayer ? 0 : 7)) {
                     newBoard[move.toR][move.toC] = isMaximizingPlayer ? 'Q' : 'q';
                 }
 
+                // 4. Cập nhật quyền nhập thành giả định khi quân chính di chuyển
+                if (piece.toUpperCase() === 'K') {
+                    if (playerColor === 'white') {
+                        castlingRights.wK = false; castlingRights.wQ = false;
+                    } else {
+                        castlingRights.bK = false; castlingRights.bQ = false;
+                    }
+                } else if (piece.toUpperCase() === 'R') {
+                    if (move.fromR === 7 && move.fromC === 7) castlingRights.wK = false; 
+                    if (move.fromR === 7 && move.fromC === 0) castlingRights.wQ = false;
+                    if (move.fromR === 0 && move.fromC === 7) castlingRights.bK = false;
+                    if (move.fromR === 0 && move.fromC === 0) castlingRights.bQ = false;
+                }
 
-                const value = minimax(newBoard, depth - 1, !isMaximizingPlayer);
+                const value = minimax(newBoard, depth - 1, !isMaximizingPlayer, alpha, beta);
+
+                // Quan trọng: Khôi phục castlingRights sau khi tính toán
+                castlingRights = originalCastlingRights;
 
                 if (isMaximizingPlayer) {
                     bestValue = Math.max(bestValue, value);
+                    alpha = Math.max(alpha, bestValue);
                 } else {
                     bestValue = Math.min(bestValue, value);
+                    beta = Math.min(beta, bestValue);
+                }
+                
+                // Cắt tỉa Alpha-Beta
+                if (beta <= alpha) {
+                    break;
                 }
             }
 
@@ -537,27 +760,63 @@
             
             const legalMoves = getAllLegalMoves(AI_PLAYER, currentBoard);
             
-            // Xáo trộn danh sách nước đi
+            // Xáo trộn danh sách nước đi để thêm tính ngẫu nhiên
             legalMoves.sort(() => Math.random() - 0.5); 
+
+            // Sử dụng Alpha-Beta Pruning
+            let alpha = -Infinity;
+            let beta = Infinity;
 
             for (const move of legalMoves) {
                 const newBoard = JSON.parse(JSON.stringify(currentBoard));
                 const piece = newBoard[move.fromR][move.fromC];
+                
+                const originalCastlingRights = JSON.parse(JSON.stringify(castlingRights));
+
+                // 1. Xử lý Nhập Thành giả định
+                if (move.isCastling) {
+                    const rookR = move.fromR;
+                    let rookFromC, rookToC;
+                    if (move.castleSide === 'K') { rookFromC = 7; rookToC = 5; } 
+                    else if (move.castleSide === 'Q') { rookFromC = 0; rookToC = 3; }
+                    
+                    const rookPiece = newBoard[rookR][rookFromC];
+                    newBoard[rookR][rookToC] = rookPiece; 
+                    newBoard[rookR][rookFromC] = null;    
+                    // Cập nhật quyền nhập thành giả định
+                    castlingRights.bK = false; castlingRights.bQ = false;
+                }
+                
+                // 2. Thực hiện nước đi quân chính
                 newBoard[move.toR][move.toC] = piece;
                 newBoard[move.fromR][move.fromC] = null;
                 
-                // Giả định Thăng cấp Tốt
+                // 3. Xử lý Thăng cấp Tốt giả định (luôn lên Hậu)
                 if (piece.toLowerCase() === 'p' && move.toR === 7) {
                     newBoard[move.toR][move.toC] = 'q';
                 }
-                
+
+                // 4. Cập nhật quyền nhập thành giả định khi quân chính di chuyển
+                if (piece.toUpperCase() === 'K') {
+                    castlingRights.bK = false; castlingRights.bQ = false;
+                } else if (piece.toUpperCase() === 'R') {
+                    if (move.fromR === 0 && move.fromC === 7) castlingRights.bK = false;
+                    if (move.fromR === 0 && move.fromC === 0) castlingRights.bQ = false;
+                }
+
                 // Gọi minimax cho lượt của Trắng (Maximizing)
-                const boardValue = minimax(newBoard, depth - 1, true);
+                const boardValue = minimax(newBoard, depth - 1, true, alpha, beta);
+
+                // Khôi phục quyền nhập thành
+                castlingRights = originalCastlingRights;
 
                 if (boardValue < bestValue) {
                     bestValue = boardValue;
                     bestMove = move;
                 }
+                
+                beta = Math.min(beta, boardValue);
+                if (beta <= alpha) break;
             }
 
             return bestMove;
@@ -576,8 +835,8 @@
                 isThinking = false;
 
                 if (bestMove) {
-                    // Thực hiện nước đi tốt nhất
-                    executeMove(bestMove.fromR, bestMove.fromC, bestMove.toR, bestMove.toC);
+                    // Thực hiện nước đi tốt nhất (bao gồm cả nhập thành)
+                    executeMove(bestMove.fromR, bestMove.fromC, bestMove.toR, bestMove.toC, bestMove.isCastling, bestMove.castleSide);
                     
                     // Chuyển lượt
                     turn = 'white';
@@ -596,22 +855,58 @@
                     isCheckmateOrStalemate(AI_PLAYER); 
                 }
                 drawBoard();
-            }, 200); // Tăng độ trễ lên 200ms để người dùng kịp nhìn thấy highlight
+            }, 500); // Tăng độ trễ lên 500ms để mô phỏng AI "suy nghĩ"
         }
 
         // 7. GAME FLOW CONTROL
 
-        function executeMove(fromR, fromC, toR, toC) {
+        // Hàm thực hiện nước đi, bao gồm cả cập nhật quyền nhập thành
+        function executeMove(fromR, fromC, toR, toC, isCastling = false, castleSide = null) {
             const piece = board[fromR][fromC];
+            const color = getPieceColor(piece);
+
+            // 1. Cập nhật quyền Nhập Thành (nếu King hoặc Rook di chuyển)
+            if (piece.toUpperCase() === 'K') {
+                if (color === 'white') {
+                    castlingRights.wK = false;
+                    castlingRights.wQ = false;
+                } else {
+                    castlingRights.bK = false;
+                    castlingRights.bQ = false;
+                }
+            } else if (piece.toUpperCase() === 'R') {
+                if (fromR === 7 && fromC === 7) castlingRights.wK = false; // White K-side Rook
+                if (fromR === 7 && fromC === 0) castlingRights.wQ = false; // White Q-side Rook
+                if (fromR === 0 && fromC === 7) castlingRights.bK = false; // Black K-side Rook
+                if (fromR === 0 && fromC === 0) castlingRights.bQ = false; // Black Q-side Rook
+            }
             
-            // Move the piece
+            // 2. Xử lý Nhập Thành (di chuyển Xe)
+            if (isCastling) {
+                const rookR = fromR;
+                let rookFromC, rookToC;
+
+                if (castleSide === 'K') { // Nhập thành Vua (King-side)
+                    rookFromC = 7;
+                    rookToC = 5;
+                } else if (castleSide === 'Q') { // Nhập thành Hậu (Queen-side)
+                    rookFromC = 0;
+                    rookToC = 3;
+                }
+                
+                const rookPiece = board[rookR][rookFromC];
+                board[rookR][rookToC] = rookPiece; // Xe di chuyển
+                board[rookR][rookFromC] = null;    // Xóa vị trí cũ của Xe
+            }
+
+            // 3. Di chuyển quân chính (Vua/Quân khác)
             board[toR][toC] = piece;
             board[fromR][fromC] = null;
 
             // Lưu lại nước đi cuối cùng
             lastMove = { fromR, fromC, toR, toC }; 
             
-            // Pawn Promotion (to Queen)
+            // 4. Pawn Promotion (to Queen)
             if (piece.toLowerCase() === 'p') {
                 if (piece === 'P' && toR === 0) { // White pawn to rank 1
                     board[toR][toC] = 'Q';
@@ -626,7 +921,8 @@
             
             // Lấy tất cả các nước đi hợp lệ cho quân cờ đã chọn
             const allMoves = getMoves(r, c, piece, board);
-            possibleMoves = filterLegalMoves(allMoves, board, turn).map(m => ({ r: m.toR, c: m.toC }));
+            // Quan trọng: Lưu trữ toàn bộ thông tin nước đi (bao gồm isCastling/castleSide)
+            possibleMoves = filterLegalMoves(allMoves, board, turn);
         }
         
         // 8. EVENT HANDLING (Click/Tap)
@@ -666,11 +962,15 @@
 
             if (selectedPiece) {
                 // Case 1: Đã chọn quân. Kiểm tra xem ô đích có hợp lệ không.
-                const targetMove = possibleMoves.find(move => move.r === row && move.c === col);
+                const targetMove = possibleMoves.find(move => move.toR === row && move.toC === col);
                 
                 if (targetMove) {
+                    // Xác định cờ nhập thành
+                    const isCastling = targetMove.isCastling;
+                    const castleSide = targetMove.castleSide;
+
                     // Thực hiện nước đi
-                    executeMove(selectedPiece.row, selectedPiece.col, row, col);
+                    executeMove(selectedPiece.row, selectedPiece.col, row, col, isCastling, castleSide);
                     
                     // Reset lựa chọn
                     selectedPiece = null;
@@ -687,9 +987,6 @@
                         
                         if (isKingInCheck(turn, board)) {
                              statusMsg += ' - CHIẾU (Check)!';
-                             statusDisplay.classList.add('bg-red-700');
-                        } else {
-                             statusDisplay.classList.remove('bg-red-700');
                         }
                         updateStatus(statusMsg);
                     }
@@ -729,9 +1026,9 @@
             toggleAiBtn.classList.toggle('bg-green-600', isAIEnabled);
             
             if (isAIEnabled) {
-                alert('Chế độ AI đã BẬT. Bạn chơi quân Trắng (White), AI chơi quân Đen (Black).');
+                customAlert('Chế độ AI đã BẬT. Bạn chơi quân Trắng (White), AI chơi quân Đen (Black).');
             } else {
-                 alert('Chế độ AI đã TẮT. Chơi chế độ 2 người chơi.');
+                 customAlert('Chế độ AI đã TẮT. Chơi chế độ 2 người chơi.');
             }
             
             // Nếu là lượt AI và AI vừa được bật, kích hoạt AI
@@ -741,7 +1038,7 @@
         });
         
         // Custom alert function (since window.alert is disallowed)
-        function alert(message) {
+        function customAlert(message) {
             console.log("Alert:", message);
             statusDisplay.innerHTML = `<span class="text-yellow-300 font-bold">${message}</span>`;
             statusDisplay.classList.add('bg-gray-800');
