@@ -3,378 +3,668 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tool Việt Hoá JSON Subnautica - Phiên Bản Pro</title>
+    <title>Công cụ Việt hóa Game JSON bằng Gemini</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.260.0/lucide.min.css" rel="stylesheet">
     <style>
-        :root { --primary: #2c3e50; --secondary: #3498db; --success: #2ecc71; --danger: #e74c3c; --bg: #ecf0f1; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg); color: #333; margin: 0; padding: 20px; line-height: 1.6; }
-        .container { max-width: 1200px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
-        h1 { text-align: center; color: var(--primary); border-bottom: 2px solid var(--secondary); padding-bottom: 10px; margin-bottom: 20px; }
-        
-        /* Bảng điều khiển */
-        .dashboard { display: flex; flex-wrap: wrap; gap: 15px; align-items: center; background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd; }
-        input[type="file"] { border: 1px solid #ccc; padding: 8px; border-radius: 5px; background: white; }
-        button { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; transition: all 0.2s; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-blue { background-color: var(--secondary); }
-        .btn-blue:hover:not(:disabled) { background-color: #2980b9; }
-        .btn-green { background-color: var(--success); }
-        .btn-green:hover:not(:disabled) { background-color: #27ae60; }
-        .btn-red { background-color: var(--danger); }
-        
-        /* Trạng thái và Tiến trình */
-        .status-box { flex-basis: 100%; margin-top: 10px; font-size: 15px; font-weight: bold; }
-        .progress-wrapper { width: 100%; background: #e0e0e0; border-radius: 20px; overflow: hidden; height: 25px; margin-top: 15px; display: none; position: relative; }
-        .progress-bar { height: 100%; background: linear-gradient(90deg, #3498db, #2ecc71); width: 0%; transition: width 0.4s ease; }
-        .progress-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #000; font-size: 12px; font-weight: bold; }
-
-        /* Bảng dữ liệu */
-        .table-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        table { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
-        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; vertical-align: top; word-wrap: break-word; }
-        th { background-color: var(--primary); color: white; position: sticky; top: 0; }
-        th:nth-child(1) { width: 20%; } /* Key */
-        th:nth-child(2) { width: 40%; } /* English */
-        th:nth-child(3) { width: 40%; } /* Vietnamese */
-        tr:nth-child(even) { background-color: #f8f9fa; }
-        tr:hover { background-color: #e8f4f8; }
-        .translated { color: #27ae60; font-weight: bold; }
-
-        /* Phân trang */
-        .pagination { display: flex; gap: 10px; align-items: center; }
-        .pagination button { padding: 5px 10px; background: var(--primary); font-size: 12px; }
+        .glowing-text { text-shadow: 0 0 10px rgba(99, 102, 241, 0.4); }
+        @keyframes progress-stripes { from { background-position: 1rem 0; } to { background-position: 0 0; } }
+        .bg-stripes {
+            background-image: linear-gradient(45deg,rgba(255,255,255,.15) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.15) 50%,rgba(255,255,255,.15) 75%,transparent 75%,transparent); 
+            background-size: 1rem 1rem; 
+            animation: progress-stripes 1s linear infinite;
+        }
+        /* Custom Scrollbar for console */
+        .console-scroll::-webkit-scrollbar { width: 6px; }
+        .console-scroll::-webkit-scrollbar-track { background: transparent; }
+        .console-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
     </style>
 </head>
-<body>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-800 pb-10">
 
-<div class="container">
-    <h1>Công Cụ Việt Hoá File JSON (Subnautica Pro)</h1>
-    
-    <div class="dashboard">
-        <input type="file" id="fileInput" accept=".json">
-        <button id="translateBtn" class="btn-blue" disabled>⚡ Bắt Đầu Dịch Tự Động</button>
-        <button id="pauseBtn" class="btn-red" style="display:none;">Tạm Dừng</button>
-        <button id="downloadBtn" class="btn-green" style="display:none;">⬇️ Tải File Đã Dịch</button>
-        
-        <div class="status-box" id="statusMessage">Chờ tải file... (Hỗ trợ file JSON game chứa comment và lỗi dòng)</div>
-        
-        <div class="progress-wrapper" id="progressWrapper">
-            <div class="progress-bar" id="progressBar"></div>
-            <div class="progress-text" id="progressText">0%</div>
+    <div class="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
+        <!-- Header -->
+        <header class="mb-6 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-indigo-600 flex items-center justify-center sm:justify-start gap-2 glowing-text">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    Game Localizer <span class="text-amber-500">Infinity</span>
+                </h1>
+                <p class="text-slate-500 mt-2">Phiên bản Không Giới Hạn: Tự động ngủ đông chống Rate Limit & Lưu giữa chừng</p>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- CỘT TRÁI (Điều khiển chính) -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- API Key Configuration -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="flex items-center gap-2 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        <label class="block text-sm font-bold text-slate-800">Cấu hình API Key</label>
+                    </div>
+                    
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <input type="password" id="custom-api-key" placeholder="Dán API Key (AIzaSy...) vào đây..." class="flex-1 px-4 py-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full text-sm font-mono bg-slate-50">
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" class="bg-white text-indigo-700 px-5 py-3 border border-indigo-200 rounded-lg hover:bg-indigo-50 font-bold text-sm flex items-center justify-center whitespace-nowrap transition-colors">
+                            Lấy Key Miễn Phí
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-1.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Upload Area -->
+                <div id="upload-area" class="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-10 text-center transition-all hover:border-indigo-400 hover:bg-indigo-50 hover:shadow-md cursor-pointer">
+                    <input type="file" id="file-input" accept=".json, .txt" class="hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mx-auto text-indigo-400 mb-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                    <h3 class="text-xl font-bold text-slate-700">Tải lên file ngôn ngữ (.json)</h3>
+                    <p class="text-sm text-slate-500 mt-2">Hỗ trợ file cực lớn (>10,000 dòng)</p>
+                </div>
+
+                <!-- File Info & Options -->
+                <div id="file-info" class="hidden flex flex-col gap-4">
+                    <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex items-center gap-3 overflow-hidden shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-600 flex-shrink-0"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <div class="truncate w-full">
+                            <p id="filename-display" class="font-bold text-indigo-900 truncate text-lg">filename.json</p>
+                            <p id="key-count-display" class="text-sm text-indigo-700 font-medium">Đang quét dữ liệu...</p>
+                        </div>
+                    </div>
+
+                    <!-- Tùy chọn thông minh -->
+                    <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl flex flex-col gap-3 shadow-sm">
+                        <div class="flex items-start gap-3">
+                            <div class="mt-0.5">
+                                <input type="checkbox" id="skip-translated" class="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer" checked>
+                            </div>
+                            <div>
+                                <label for="skip-translated" class="text-sm font-bold text-amber-900 cursor-pointer block">Tự động Bỏ qua các dòng đã có Tiếng Việt</label>
+                                <p class="text-xs text-amber-700 mt-1">Giúp dịch tiếp các file đang dở dang cực nhanh mà không tốn lượt API.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="start-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-4 rounded-xl font-bold text-lg transition-transform transform hover:-translate-y-0.5 shadow-lg flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        BẮT ĐẦU DỊCH KHÔNG GIỚI HẠN
+                    </button>
+                </div>
+
+                <!-- Progress Area -->
+                <div id="progress-area" class="hidden bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="flex justify-between items-end mb-3">
+                        <h4 class="font-bold text-slate-700 flex items-center gap-2" id="status-text">
+                            <svg id="status-spinner" class="animate-spin -ml-1 mr-2 h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Đang xử lý...
+                        </h4>
+                        <span class="text-xl font-black text-indigo-600" id="progress-percentage">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-5 mb-3 overflow-hidden border border-slate-200 shadow-inner">
+                        <div id="progress-bar" class="bg-indigo-600 h-5 rounded-full transition-all duration-300 relative bg-stripes" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between items-center text-xs text-slate-500 mb-6">
+                        <span id="speed-indicator" class="font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200 text-slate-600">Tốc độ: Đang tính toán...</span>
+                        <span id="progress-detail" class="font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200">0 / 0 dòng</span>
+                    </div>
+
+                    <!-- Nút điều khiển Live -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="pause-resume-btn" class="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-3 rounded-xl font-bold transition-colors shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" id="pause-icon"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                            <span id="pause-text">Tạm Dừng</span>
+                        </button>
+                        <button id="download-partial-btn" class="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-4 py-3 rounded-xl font-bold transition-colors shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                            Tải Phần Đang Dịch
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Result Area -->
+                <div id="result-area" class="hidden bg-white p-8 rounded-2xl border border-slate-200 shadow-sm text-center">
+                    <div class="inline-flex items-center justify-center w-24 h-24 rounded-full bg-green-100 text-green-600 mb-4 shadow-sm border border-green-200">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+                    </div>
+                    <h3 class="text-3xl font-black text-slate-800">Hoàn tất xuất sắc!</h3>
+                    <p class="text-slate-500 mt-2 mb-8 text-lg" id="finish-message">File ngôn ngữ game của bạn đã được Việt hóa xong 100%.</p>
+                    <div class="flex flex-col sm:flex-row justify-center gap-4">
+                        <button id="download-final-btn" class="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-xl font-bold transition-colors shadow-lg transform hover:-translate-y-1 text-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                            TẢI FILE VIỆT HÓA
+                        </button>
+                        <button id="reset-btn" class="px-8 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-colors text-lg">
+                            Dịch file khác
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Error Message -->
+                <div id="error-message" class="hidden mt-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-600 flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+                    <div class="flex-1 text-red-800 text-sm font-medium leading-relaxed" id="error-text"></div>
+                    <button id="close-error-btn" class="text-red-500 hover:text-red-800 p-1">&times;</button>
+                </div>
+            </div>
+
+            <!-- CỘT PHẢI (Terminal Log) -->
+            <div class="bg-slate-900 rounded-2xl shadow-lg border border-slate-700 flex flex-col h-[500px] lg:h-auto overflow-hidden">
+                <div class="bg-slate-800 px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+                        <h3 class="text-sm font-bold text-slate-300 tracking-wider">SYSTEM LOGS</h3>
+                    </div>
+                    <div class="flex gap-1.5">
+                        <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                        <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+                        <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                    </div>
+                </div>
+                <div id="console-logs" class="flex-1 p-4 overflow-y-auto console-scroll bg-slate-900 text-xs font-mono text-slate-300 space-y-2">
+                    <div class="text-indigo-400">[*] Chờ tải file ngôn ngữ...</div>
+                </div>
+            </div>
+
         </div>
     </div>
 
-    <div class="table-controls">
-        <div id="tableInfo">Hiển thị: 0 dòng</div>
-        <div class="pagination">
-            <button id="prevPage" disabled>◄ Trang Trước</button>
-            <span id="pageInfo">Trang 0 / 0</span>
-            <button id="nextPage" disabled>Trang Sau ►</button>
-        </div>
-    </div>
-
-    <table id="dataTable">
-        <thead>
-            <tr>
-                <th>Key (Mã Game)</th>
-                <th>Tiếng Anh (Gốc)</th>
-                <th>Tiếng Việt (Bản Dịch)</th>
-            </tr>
-        </thead>
-        <tbody id="tableBody">
-            <tr><td colspan="3" style="text-align:center;">Vui lòng chọn file JSON để bắt đầu...</td></tr>
-        </tbody>
-    </table>
-</div>
-
-<script>
-    // --- BIẾN TOÀN CỤC ---
-    let originalData = {};
-    let translatedData = {};
-    let dataKeys = [];
-    let isTranslating = false;
-    
-    // Cài đặt phân trang
-    let currentPage = 1;
-    const itemsPerPage = 50;
-
-    // Các Element UI
-    const fileInput = document.getElementById('fileInput');
-    const translateBtn = document.getElementById('translateBtn');
-    const pauseBtn = document.getElementById('pauseBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const statusMessage = document.getElementById('statusMessage');
-    const tableBody = document.getElementById('tableBody');
-    const progressWrapper = document.getElementById('progressWrapper');
-    const progressBar = document.getElementById('progressBar');
-    const progressText = document.getElementById('progressText');
-    
-    const prevPageBtn = document.getElementById('prevPage');
-    const nextPageBtn = document.getElementById('nextPage');
-    const pageInfo = document.getElementById('pageInfo');
-    const tableInfo = document.getElementById('tableInfo');
-
-    // ==========================================
-    // 1. BỘ XỬ LÝ JSON ĐẶC BIỆT CHO GAME
-    // Giải quyết triệt để lỗi xuống dòng và comment
-    // ==========================================
-    function sanitizeGameJSON(rawText) {
-        let text = rawText.replace(/^\uFEFF/, ''); // Xoá BOM
+    <script>
+        // --- CẤU HÌNH API ---
+        const apiKey = ""; 
+        const MODEL_NAME = "gemini-2.5-flash-preview-09-2025";
         
-        let result = '';
-        let inString = false;
-        let escapeNext = false;
+        // Cấu hình tăng tốc an toàn
+        const CHUNK_SIZE = 100;
+        const CONCURRENCY_LIMIT = 2; // Số luồng
 
-        // Quét từng ký tự để xử lý lỗi xuống dòng (Enter) bên trong chuỗi string
-        for (let i = 0; i < text.length; i++) {
-            let char = text[i];
-            if (escapeNext) { result += char; escapeNext = false; continue; }
-            if (char === '\\') { escapeNext = true; result += char; continue; }
-            if (char === '"') { inString = !inString; result += char; continue; }
+        // --- DOM ELEMENTS ---
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        const fileInfo = document.getElementById('file-info');
+        const filenameDisplay = document.getElementById('filename-display');
+        const keyCountDisplay = document.getElementById('key-count-display');
+        const startBtn = document.getElementById('start-btn');
+        const progressArea = document.getElementById('progress-area');
+        const progressBar = document.getElementById('progress-bar');
+        const progressPercentage = document.getElementById('progress-percentage');
+        const progressDetail = document.getElementById('progress-detail');
+        const speedIndicator = document.getElementById('speed-indicator');
+        const resultArea = document.getElementById('result-area');
+        
+        const downloadPartialBtn = document.getElementById('download-partial-btn');
+        const downloadFinalBtn = document.getElementById('download-final-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        
+        const pauseResumeBtn = document.getElementById('pause-resume-btn');
+        const pauseText = document.getElementById('pause-text');
+        const pauseIcon = document.getElementById('pause-icon');
+        const statusText = document.getElementById('status-text');
+        const statusSpinner = document.getElementById('status-spinner');
+        
+        const errorMessage = document.getElementById('error-message');
+        const errorText = document.getElementById('error-text');
+        const closeErrorBtn = document.getElementById('close-error-btn');
+        
+        const skipCheckbox = document.getElementById('skip-translated');
+        const finishMessage = document.getElementById('finish-message');
+        const consoleLogs = document.getElementById('console-logs');
 
-            if (inString) {
-                if (char === '\n') result += '\\n'; // Chuyển Enter thực thành \n
-                else if (char === '\r') result += '';
-                else if (char === '\t') result += '\\t';
-                else result += char;
-            } else {
-                result += char;
-            }
+        // --- GLOBAL STATE ---
+        let originalJsonData = null;
+        let translatedJsonData = {}; 
+        let pendingEntries = []; // Mảng chứa các cặp [key, value] đang đợi dịch
+        let currentFilename = "";
+        let totalKeysToProcess = 0; 
+        let processedKeysGlobal = 0; 
+        let startTime = 0;
+        let finalSkippedCount = 0;
+        
+        // Biến điều khiển luồng (Pause/Resume/Stop)
+        let isPaused = false;
+        let isRunning = false;
+        let pauseResolver = null; // Promise dùng để chặn/mở khóa worker
+
+        // Biểu thức chính quy (Regex) nhận diện Tiếng Việt
+        const vietnameseRegex = /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệđìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵ]/i;
+
+        // --- EVENT LISTENERS ---
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('border-indigo-400', 'bg-indigo-50'); });
+        uploadArea.addEventListener('dragleave', () => { uploadArea.classList.remove('border-indigo-400', 'bg-indigo-50'); });
+        uploadArea.addEventListener('drop', (e) => { e.preventDefault(); uploadArea.classList.remove('border-indigo-400', 'bg-indigo-50'); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); });
+        fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFile(e.target.files[0]); });
+        
+        startBtn.addEventListener('click', startTranslationManager);
+        downloadFinalBtn.addEventListener('click', () => downloadTranslatedFile(true));
+        downloadPartialBtn.addEventListener('click', () => downloadTranslatedFile(false));
+        resetBtn.addEventListener('click', resetUI);
+        closeErrorBtn.addEventListener('click', () => errorMessage.classList.add('hidden'));
+
+        pauseResumeBtn.addEventListener('click', togglePauseResume);
+
+        // ============================================================================
+        // LOG SYSTEM (TERMINAL)
+        // ============================================================================
+        function logMsg(msg, type = 'info') {
+            const time = new Date().toLocaleTimeString('vi-VN', { hour12: false });
+            let color = 'text-slate-300';
+            let prefix = '[*]';
+            
+            if (type === 'success') { color = 'text-green-400'; prefix = '[+]'; }
+            else if (type === 'warning') { color = 'text-amber-400'; prefix = '[!]'; }
+            else if (type === 'error') { color = 'text-red-400'; prefix = '[-]'; }
+            else if (type === 'sys') { color = 'text-indigo-400'; prefix = '[SYS]'; }
+
+            const logEl = document.createElement('div');
+            logEl.className = color;
+            logEl.innerHTML = `<span class="text-slate-500 mr-2">${time}</span> ${prefix} ${msg}`;
+            
+            consoleLogs.appendChild(logEl);
+            consoleLogs.scrollTop = consoleLogs.scrollHeight; // Auto scroll
         }
 
-        // Xoá comment // và /* */
-        result = result.replace(/\/\*[\s\S]*?\*\//g, '');
-        result = result.replace(/([^\\]|^)\/\/.*$/gm, '$1');
-        
-        // Xoá dấu phẩy thừa ở dòng cuối (Trailing comma)
-        result = result.replace(/,(?=\s*[}\]])/g, '');
+        // ============================================================================
+        // DUAL-TIER PARSER
+        // ============================================================================
+        function sanitizeGameJSON(raw) {
+            if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
+            let inString = false, inLineComment = false, inBlockComment = false, result = "";
+            for (let i = 0; i < raw.length; i++) {
+                let c = raw[i], nextC = raw[i + 1];
+                if (!inString && !inLineComment && !inBlockComment) {
+                    if (c === '"') { inString = true; result += c; } 
+                    else if (c === '/' && nextC === '/') { inLineComment = true; i++; } 
+                    else if (c === '/' && nextC === '*') { inBlockComment = true; i++; } 
+                    else { result += c; }
+                } else if (inLineComment) {
+                    if (c === '\n' || c === '\r') { inLineComment = false; result += c; }
+                } else if (inBlockComment) {
+                    if (c === '*' && nextC === '/') { inBlockComment = false; i++; }
+                } else if (inString) {
+                    if (c === '\\') { 
+                        result += c; if (nextC !== undefined) { result += nextC; i++; }
+                    } else if (c === '"') { inString = false; result += c; } 
+                    else if (c === '\n') { result += '\\n'; } 
+                    else if (c === '\r') { } 
+                    else if (c === '\t') { result += '\\t'; } 
+                    else { if (c.charCodeAt(0) >= 32) result += c; }
+                }
+            }
+            return result.replace(/,\s*([}\]])/g, '$1');
+        }
 
-        return result;
-    }
+        function forceExtractJSON(raw) {
+            const result = {};
+            const regex = /"([^"\\]*(?:\\.[^"\\]*)*)"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/g;
+            let match, count = 0;
+            while ((match = regex.exec(raw)) !== null) {
+                const key = match[1];
+                let value = match[2].replace(/\r?\n/g, '\\n').replace(/\t/g, '\\t');
+                try { result[key] = JSON.parse(`{"k": "${value}"}`).k; count++; } catch(e) {}
+            }
+            if (count === 0) throw new Error("Không trích xuất được văn bản hợp lệ.");
+            return { parsed: result, method: "Regex Extractor" };
+        }
 
-    // ==========================================
-    // 2. XỬ LÝ SỰ KIỆN TẢI FILE LÊN
-    // ==========================================
-    fileInput.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = function(evt) {
+        function parseGameFile(rawContent) {
             try {
-                const safeJSONString = sanitizeGameJSON(evt.target.result);
-                originalData = JSON.parse(safeJSONString);
-                translatedData = JSON.parse(JSON.stringify(originalData)); // Copy dữ liệu
-                dataKeys = Object.keys(originalData);
-                
-                statusMessage.innerHTML = `<span style="color:var(--success)">✔️ Đã tải thành công file! Tìm thấy ${dataKeys.length} đoạn hội thoại/từ vựng.</span>`;
-                translateBtn.disabled = false;
-                downloadBtn.style.display = 'inline-block';
-                
-                currentPage = 1;
-                renderTable();
-            } catch (error) {
-                console.error(error);
-                statusMessage.innerHTML = `<span style="color:var(--danger)">❌ Lỗi: Cấu trúc JSON vẫn chưa hợp lệ. File game bị hỏng quá nặng.</span>`;
+                return { parsed: JSON.parse(sanitizeGameJSON(rawContent)), method: "Tiêu chuẩn" };
+            } catch (e) {
+                try { return forceExtractJSON(rawContent); } 
+                catch (e2) { throw new Error("File hỏng quá nặng: " + e2.message); }
             }
-        };
-        reader.readAsText(file);
-    });
-
-    // ==========================================
-    // 3. HIỂN THỊ VÀ PHÂN TRANG BẢNG DỮ LIỆU
-    // ==========================================
-    function renderTable() {
-        tableBody.innerHTML = '';
-        const totalPages = Math.ceil(dataKeys.length / itemsPerPage);
-        
-        // Logic disable/enable nút chuyển trang
-        prevPageBtn.disabled = currentPage === 1;
-        nextPageBtn.disabled = currentPage === totalPages || totalPages === 0;
-        pageInfo.innerText = `Trang ${currentPage} / ${totalPages}`;
-        tableInfo.innerText = `Tổng số dòng: ${dataKeys.length}`;
-
-        // Lấy dữ liệu của trang hiện tại
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        const pageKeys = dataKeys.slice(startIndex, endIndex);
-
-        pageKeys.forEach(key => {
-            const tr = document.createElement('tr');
-            
-            // Highlight nếu đã dịch xong (khác bản gốc)
-            const isTranslated = originalData[key] !== translatedData[key] && translatedData[key] !== "";
-            const transClass = isTranslated ? 'class="translated"' : '';
-
-            tr.innerHTML = `
-                <td><b>${key}</b></td>
-                <td>${escapeHTML(originalData[key])}</td>
-                <td id="cell-${key}" ${transClass}>${escapeHTML(translatedData[key])}</td>
-            `;
-            tableBody.appendChild(tr);
-        });
-    }
-
-    // Sự kiện chuyển trang
-    prevPageBtn.addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderTable(); } });
-    nextPageBtn.addEventListener('click', () => { if (currentPage < Math.ceil(dataKeys.length / itemsPerPage)) { currentPage++; renderTable(); } });
-
-    // Tiện ích chống lỗi hiển thị HTML tag trong chuỗi
-    function escapeHTML(str) {
-        if (typeof str !== 'string') return str;
-        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-
-    // ==========================================
-    // 4. BỘ BẢO VỆ MÃ CODE GAME (REGEX)
-    // ==========================================
-    function protectGameTags(text) {
-        let protectedText = text;
-        const map = {};
-        let counter = 0;
-
-        // Bảo vệ các thẻ <color=...>, <delay=...>, <duration=...>
-        protectedText = protectedText.replace(/<[^>]+>/g, function(match) {
-            const placeholder = `[__TAG${counter}__]`;
-            map[placeholder] = match;
-            counter++;
-            return placeholder;
-        });
-
-        // Bảo vệ các biến số {0}, {1}
-        protectedText = protectedText.replace(/\{\d+\}/g, function(match) {
-            const placeholder = `[__VAR${counter}__]`;
-            map[placeholder] = match;
-            counter++;
-            return placeholder;
-        });
-
-        // Bảo vệ ký tự \n
-        protectedText = protectedText.replace(/\\n/g, function(match) {
-            const placeholder = `[__NL${counter}__]`;
-            map[placeholder] = match;
-            counter++;
-            return placeholder;
-        });
-
-        return { text: protectedText, map: map };
-    }
-
-    function restoreGameTags(text, map) {
-        let restoredText = text;
-        for (const [placeholder, originalVal] of Object.entries(map)) {
-            // Đề phòng Google Dịch tự ý chèn dấu cách vào placeholder (ví dụ [ __ TAG0 __ ])
-            const regexFriendlyPlaceholder = placeholder.replace(/\[/g, '\\[').replace(/\]/g, '\\]').replace(/_/g, '\\s*_\\s*');
-            const regex = new RegExp(regexFriendlyPlaceholder, 'g');
-            restoredText = restoredText.replace(regex, originalVal);
         }
-        return restoredText;
-    }
 
-    // ==========================================
-    // 5. GỌI API GOOGLE TRANSLATE
-    // ==========================================
-    async function translateTextWithGoogle(text) {
-        if (!text || typeof text !== 'string' || text.trim() === '') return text;
-
-        // 1. Bảo vệ các tag code của game
-        const { text: safeText, map } = protectGameTags(text);
-
-        // 2. Gọi Google Translate API (Public endpoint)
-        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q=${encodeURIComponent(safeText)}`;
-        
-        try {
-            const response = await fetch(url);
-            const data = await response.json();
-            
-            // Gộp các câu dịch lại (Google chia nhỏ câu nếu quá dài)
-            let translated = data[0].map(item => item[0]).join('');
-            
-            // 3. Trả lại các tag code game vào đúng vị trí
-            return restoreGameTags(translated, map);
-        } catch (error) {
-            console.error("Lỗi Google API:", error);
-            return text; // Giữ nguyên gốc nếu lỗi
+        // ============================================================================
+        // CORE LOGIC
+        // ============================================================================
+        function showError(msg) {
+            errorText.innerHTML = msg;
+            errorMessage.classList.remove('hidden');
+            logMsg(msg.replace(/<[^>]*>?/gm, ''), 'error'); // strip HTML for log
         }
-    }
 
-    // ==========================================
-    // 6. VÒNG LẶP DỊCH TỰ ĐỘNG
-    // ==========================================
-    translateBtn.addEventListener('click', async function() {
-        isTranslating = true;
-        translateBtn.style.display = 'none';
-        pauseBtn.style.display = 'inline-block';
-        progressWrapper.style.display = 'block';
-        
-        let total = dataKeys.length;
-        let processed = 0;
+        function handleFile(file) {
+            errorMessage.classList.add('hidden');
+            consoleLogs.innerHTML = ''; // Clear logs
+            logMsg(`Đang đọc file: ${file.name}...`, 'sys');
+            
+            currentFilename = file.name;
+            filenameDisplay.textContent = currentFilename;
+            uploadArea.classList.add('hidden');
+            fileInfo.classList.remove('hidden');
+            keyCountDisplay.textContent = "Đang dọn dẹp và phân tích cấu trúc...";
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const result = parseGameFile(e.target.result);
+                    originalJsonData = result.parsed;
+                    const totalKeys = Object.keys(originalJsonData).length;
+                    
+                    keyCountDisplay.textContent = `Thành công! Phát hiện ${totalKeys} dòng dữ liệu`;
+                    startBtn.disabled = false;
+                    startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    logMsg(`Đọc thành công ${totalKeys} dòng (Chế độ: ${result.method})`, 'success');
+                } catch (error) {
+                    showError(error.message);
+                    resetToUpload();
+                }
+            };
+            reader.readAsText(file);
+        }
 
-        for (let i = 0; i < total; i++) {
-            if (!isTranslating) break; // Xử lý khi bấm nút Tạm Dừng
+        function togglePauseResume() {
+            isPaused = !isPaused;
+            if (isPaused) {
+                // UI changes
+                pauseText.textContent = "Tiếp Tục";
+                pauseIcon.innerHTML = `<polygon points="5 3 19 12 5 21 5 3"/>`;
+                pauseResumeBtn.classList.replace('bg-amber-500', 'bg-green-500');
+                pauseResumeBtn.classList.replace('hover:bg-amber-600', 'hover:bg-green-600');
+                
+                statusText.innerHTML = `<svg class="mr-2 h-5 w-5 text-amber-500" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Đã tạm dừng. Có thể tải file dở dang về.`;
+                document.getElementById('progress-bar').classList.remove('bg-stripes');
+                
+                logMsg('Đã tạm dừng quá trình dịch. Trạng thái đã được lưu tạm.', 'warning');
+            } else {
+                // UI changes
+                pauseText.textContent = "Tạm Dừng";
+                pauseIcon.innerHTML = `<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>`;
+                pauseResumeBtn.classList.replace('bg-green-500', 'bg-amber-500');
+                pauseResumeBtn.classList.replace('hover:bg-green-600', 'hover:bg-amber-600');
+                
+                statusText.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Đang tiếp tục xử lý...`;
+                document.getElementById('progress-bar').classList.add('bg-stripes');
+                
+                logMsg('Tiếp tục chạy...', 'sys');
+                // Giải phóng khóa (unblock worker)
+                if (pauseResolver) {
+                    pauseResolver();
+                    pauseResolver = null;
+                }
+            }
+        }
 
-            const key = dataKeys[i];
-            const originalText = originalData[key];
+        // Hàm giúp Worker dừng lại và đợi cho đến khi isPaused = false
+        async function checkPause() {
+            if (isPaused) {
+                await new Promise(resolve => {
+                    pauseResolver = resolve;
+                });
+            }
+        }
 
-            // Chỉ dịch nếu chưa được dịch (hoặc là nội dung cũ)
-            if (typeof originalText === 'string' && originalText.length > 0) {
-                // Tạm bỏ qua nếu đã dịch rồi (để tiết kiệm API nếu resume)
-                if (translatedData[key] === originalText) {
-                    statusMessage.innerHTML = `Đang dịch dòng ${i + 1}/${total}: <b>${key}</b>`;
-                    const result = await translateTextWithGoogle(originalText);
-                    translatedData[key] = result;
+        async function startTranslationManager() {
+            if (!originalJsonData || isRunning) return;
 
-                    // Cập nhật giao diện nếu dòng đó đang ở trang hiện tại
-                    const cell = document.getElementById(`cell-${key}`);
-                    if (cell) {
-                        cell.innerText = result;
-                        cell.classList.add('translated');
-                    }
+            const activeKey = document.getElementById('custom-api-key').value.trim() || apiKey;
+            if (!activeKey) {
+                showError("Vui lòng nhập API Key để bắt đầu.");
+                return;
+            }
 
-                    // Delay 0.6 giây để tránh bị Google chặn IP vì Spam request
-                    await new Promise(r => setTimeout(r, 600)); 
+            isRunning = true;
+            isPaused = false;
+            fileInfo.classList.add('hidden');
+            progressArea.classList.remove('hidden');
+            errorMessage.classList.add('hidden');
+            
+            translatedJsonData = {}; 
+            pendingEntries = []; 
+            finalSkippedCount = 0;
+            const shouldSkipTranslated = skipCheckbox.checked;
+
+            logMsg('Bắt đầu quy trình lọc dữ liệu...', 'sys');
+
+            // Lọc dữ liệu
+            for (const [key, value] of Object.entries(originalJsonData)) {
+                if (shouldSkipTranslated && typeof value === 'string' && vietnameseRegex.test(value)) {
+                    translatedJsonData[key] = value;
+                    finalSkippedCount++;
+                } else if (shouldSkipTranslated && typeof value === 'string' && value.trim() === "") {
+                    translatedJsonData[key] = value;
+                    finalSkippedCount++;
+                } else {
+                    pendingEntries.push([key, value]);
                 }
             }
 
-            // Cập nhật thanh tiến trình
-            processed++;
-            const percent = Math.floor((processed / total) * 100);
-            progressBar.style.width = percent + '%';
-            progressText.innerText = percent + '% (' + processed + '/' + total + ')';
+            totalKeysToProcess = pendingEntries.length;
+            processedKeysGlobal = 0;
+            startTime = Date.now();
+            updateProgress();
+
+            if (finalSkippedCount > 0) {
+                logMsg(`Đã lọc ra ${finalSkippedCount} dòng Tiếng Việt/Rỗng.`, 'success');
+            }
+
+            if (totalKeysToProcess === 0) {
+                logMsg('Toàn bộ file đã là Tiếng Việt. Hoàn tất!', 'success');
+                finishProcess(true);
+                return;
+            }
+
+            logMsg(`Bắt đầu dịch ${totalKeysToProcess} dòng với ${CONCURRENCY_LIMIT} luồng...`, 'sys');
+
+            const chunksArray = [];
+            for (let i = 0; i < totalKeysToProcess; i += CHUNK_SIZE) {
+                chunksArray.push(pendingEntries.slice(i, i + CHUNK_SIZE));
+            }
+
+            let currentChunkIndex = 0;
+
+            // Worker chính: Chạy vô hạn cho đến khi xong hoặc lỗi Fatal (401)
+            async function worker(workerId) {
+                while (currentChunkIndex < chunksArray.length) {
+                    await checkPause(); // Chặn nếu đang Pause
+
+                    const indexToProcess = currentChunkIndex++;
+                    const chunkArray = chunksArray[indexToProcess];
+                    const chunkObject = Object.fromEntries(chunkArray);
+                    
+                    logMsg(`[Luồng ${workerId}] Đang dịch gói ${indexToProcess + 1}/${chunksArray.length}...`);
+                    
+                    try {
+                        // Gọi hàm Infinite Retry
+                        const translatedChunk = await translateChunkWithInfiniteRetry(chunkObject, activeKey, workerId, indexToProcess + 1);
+                        Object.assign(translatedJsonData, translatedChunk);
+                        processedKeysGlobal += chunkArray.length;
+                        updateProgress();
+                        logMsg(`[Luồng ${workerId}] ✔ Gói ${indexToProcess + 1} xong!`, 'success');
+                    } catch (error) {
+                        // Chỉ throw nếu là lỗi 401 (không thể tự cứu)
+                        throw error;
+                    }
+                }
+            }
+
+            try {
+                const workers = [];
+                for (let i = 1; i <= CONCURRENCY_LIMIT; i++) {
+                    workers.push(worker(i));
+                }
+                await Promise.all(workers);
+
+                logMsg('Tất cả các luồng đã hoàn tất công việc!', 'success');
+                finishProcess(false);
+
+            } catch (error) {
+                isRunning = false;
+                progressArea.classList.add('hidden');
+                fileInfo.classList.remove('hidden');
+                
+                let errorMsg = `Lỗi hệ thống: ${error.message}`;
+                if (error.message.includes('401') || error.message.includes('API_KEY_INVALID')) {
+                    errorMsg = "<b>Lỗi 401 (Từ chối truy cập):</b> API Key của bạn không hợp lệ hoặc đã bị khóa.";
+                }
+                showError(errorMsg);
+            }
         }
 
-        if (processed === total) {
-            statusMessage.innerHTML = `<span style="color:var(--success)">🎉 Đã dịch xong toàn bộ file! Bấm Tải Xuống để nhận kết quả.</span>`;
-            translateBtn.style.display = 'none';
-            pauseBtn.style.display = 'none';
+        // Cơ chế Ngủ Đông (Infinite Retry)
+        async function translateChunkWithInfiniteRetry(chunkObject, activeKey, workerId, pkgId) {
+            let attempt = 0;
+            while (true) {
+                try {
+                    await checkPause(); // Luôn kiểm tra pause trước khi bắn API
+                    return await translateWithGemini(chunkObject, activeKey);
+                } catch (error) {
+                    // Nếu lỗi 401 (Sai Key), không thể cứu vãn, báo lỗi ra ngoài
+                    if (error.message.includes('401')) {
+                        throw error; 
+                    }
+                    
+                    // Lỗi 429 (Rate Limit) hoặc 503/Mạng => Vào chế độ ngủ đông
+                    attempt++;
+                    // Thời gian chờ tăng dần: 10s, 20s, 30s... max là 60s
+                    let waitTime = Math.min(10000 * attempt, 60000); 
+                    
+                    logMsg(`[Luồng ${workerId}] Bị giới hạn API (Quá tải). Đang ngủ đông ${waitTime/1000}s trước khi thử lại gói ${pkgId}... (Lần ${attempt})`, 'warning');
+                    
+                    // Cập nhật UI nhẹ để user biết
+                    if(!isPaused) {
+                        statusText.innerHTML = `<svg class="mr-2 h-5 w-5 text-amber-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Đang đợi Google phục hồi API...`;
+                        document.getElementById('progress-bar').classList.remove('bg-stripes');
+                    }
+
+                    // Ngủ
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+
+                    // Thức dậy, đổi lại UI nếu không bị pause
+                    if(!isPaused) {
+                        statusText.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Đang phân tích và dịch...`;
+                        document.getElementById('progress-bar').classList.add('bg-stripes');
+                    }
+                    logMsg(`[Luồng ${workerId}] Thức dậy, thử gửi lại gói ${pkgId}...`, 'sys');
+                }
+            }
         }
-    });
 
-    pauseBtn.addEventListener('click', function() {
-        isTranslating = false;
-        translateBtn.style.display = 'inline-block';
-        translateBtn.innerText = '▶️ Tiếp Tục Dịch';
-        pauseBtn.style.display = 'none';
-        statusMessage.innerHTML = `<span style="color:var(--danger)">⏸️ Đã tạm dừng.</span>`;
-    });
+        async function translateWithGemini(jsonChunk, activeKey) {
+            const prompt = `
+Translate the values of the following JSON object to Vietnamese.
+IMPORTANT RULES:
+1. ONLY translate the VALUES. DO NOT translate or change the KEYS.
+2. Preserve ALL game formatting variables exactly as they are (e.g., {0}, {1:P0}, <color=#ff0000ff>, <b>, \\n, \\u2082, etc.).
+3. Maintain the exact same JSON structure.
 
-    // ==========================================
-    // 7. XUẤT VÀ TẢI FILE
-    // ==========================================
-    downloadBtn.addEventListener('click', function() {
-        // Xuất file JSON với định dạng 4 dấu cách cho đẹp mắt
-        const jsonString = JSON.stringify(translatedData, null, 4);
-        const blob = new Blob([jsonString], { type: "application/json;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = "Vietnamese_Subnautica.json";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    });
-</script>
+JSON to translate:
+${JSON.stringify(jsonChunk, null, 2)}`;
 
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                systemInstruction: { parts: [{ text: "You are an expert game localizer. You strictly return valid JSON matching the input schema, with values translated to Vietnamese." }] },
+                generationConfig: { responseMimeType: "application/json" }
+            };
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${activeKey}`;
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                if (response.status === 401 || response.status === 400) throw new Error("401");
+                if (response.status === 429 || response.status >= 500) throw new Error("429"); // Trigger infinite retry
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts[0]) {
+                throw new Error("429"); // Đôi khi API trả về 200 nhưng rỗng (bị chặn im lặng)
+            }
+
+            let resultText = data.candidates[0].content.parts[0].text;
+            resultText = resultText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+            return JSON.parse(resultText);
+        }
+
+        function updateProgress() {
+            const percentage = totalKeysToProcess === 0 ? 0 : Math.min(100, Math.round((processedKeysGlobal / totalKeysToProcess) * 100));
+            progressBar.style.width = `${percentage}%`;
+            progressPercentage.textContent = `${percentage}%`;
+            progressDetail.textContent = `${processedKeysGlobal} / ${totalKeysToProcess} dòng`;
+
+            const elapsedSeconds = (Date.now() - startTime) / 1000;
+            if (elapsedSeconds > 2 && processedKeysGlobal > 0) {
+                const keysPerSec = Math.round(processedKeysGlobal / elapsedSeconds);
+                speedIndicator.textContent = `Tốc độ: ~${keysPerSec} dòng/giây`;
+            }
+        }
+
+        function finishProcess(isAlreadyDone) {
+            isRunning = false;
+            progressArea.classList.add('hidden');
+            resultArea.classList.remove('hidden');
+            
+            if (isAlreadyDone) {
+                finishMessage.textContent = `File của bạn vốn đã được dịch 100% rồi (Bỏ qua ${finalSkippedCount} dòng Tiếng Việt).`;
+            } else if (finalSkippedCount > 0) {
+                finishMessage.innerHTML = `Hoàn thành dịch <b>${totalKeysToProcess}</b> dòng mới.<br/>(Đã ghép với ${finalSkippedCount} dòng cũ tạo thành file hoàn chỉnh)`;
+            } else {
+                finishMessage.textContent = "Toàn bộ file ngôn ngữ của bạn đã được Việt hóa 100%.";
+            }
+        }
+
+        // isFinal = true (Tải file full), isFinal = false (Tải file dở dang)
+        function downloadTranslatedFile(isFinal) {
+            logMsg(`Chuẩn bị xuất file ${isFinal ? 'hoàn chỉnh' : 'dở dang'}...`, 'sys');
+            const finalOutput = {};
+            
+            // Lặp qua file gốc để giữ nguyên thứ tự cấu trúc
+            for (const key in originalJsonData) {
+                if (translatedJsonData[key] !== undefined) {
+                    finalOutput[key] = translatedJsonData[key]; // Đã dịch (mới hoặc cũ)
+                } else {
+                    finalOutput[key] = originalJsonData[key]; // Chưa dịch tới (giữ nguyên tiếng Anh)
+                }
+            }
+
+            const jsonString = JSON.stringify(finalOutput, null, 4);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            
+            const nameParts = currentFilename.split('.');
+            const ext = nameParts.pop();
+            const prefix = isFinal ? '_full_vi' : '_partial_vi';
+            const newName = `${nameParts.join('.')}${prefix}.${ext}`;
+            
+            a.download = newName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            logMsg(`Đã tải xuống file: ${newName}`, 'success');
+        }
+
+        function resetToUpload() {
+            uploadArea.classList.remove('hidden');
+            fileInfo.classList.add('hidden');
+            fileInput.value = '';
+            originalJsonData = null;
+            isRunning = false;
+            if(pauseResolver) { pauseResolver(); pauseResolver = null; }
+        }
+
+        function resetUI() {
+            resultArea.classList.add('hidden');
+            errorMessage.classList.add('hidden');
+            resetToUpload();
+            consoleLogs.innerHTML = '<div class="text-indigo-400">[*] Đã thiết lập lại. Sẵn sàng cho file mới.</div>';
+        }
+    </script>
 </body>
 </html>
+
+
