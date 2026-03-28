@@ -11,8 +11,9 @@ function initBoard() {
     var config = {
         draggable: false, 
         position: 'start',
-        // Đường dẫn ảnh tĩnh chuẩn
-        pieceTheme: 'https://raw.githubusercontent.com/oakmac/chessboardjs/master/website/img/chesspieces/wikipedia/{piece}.png', 
+        // Dùng chính thư mục ảnh bạn đã up lên GitHub!
+        // Tốc độ bàn thờ và 100% không bao giờ lỗi mất quân nữa
+        pieceTheme: 'img/chesspieces/wikipedia/{piece}.png', 
     };
     
     board = Chessboard('board', config);
