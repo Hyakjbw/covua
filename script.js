@@ -9,24 +9,20 @@ var $board = $('#board');
 
 function initBoard() {
     var config = {
-        // 1. TẮT HOÀN TOÀN KÉO THẢ (Chuyển sang chế độ Ấn)
         draggable: false, 
         position: 'start',
-        
-        // 2. GIẢI PHÁP TỐI THƯỢNG CHO ẢNH QUÂN CỜ:
-        // Lấy trực tiếp ảnh từ máy chủ gốc của tác giả thư viện (Đảm bảo 100% sống và tải được trên mọi thiết bị)
+        // Đường dẫn ảnh tĩnh chuẩn
         pieceTheme: 'https://raw.githubusercontent.com/oakmac/chessboardjs/master/website/img/chesspieces/wikipedia/{piece}.png', 
     };
     
     board = Chessboard('board', config);
     updateStatus();
 
-    // 3. ĐĂNG KÝ SỰ KIỆN CLICK/CHẠM CHO MỌI Ô CỜ
     $board.off('click').on('click', '.square-55d63', onSquareClick);
 }
 
 /* =============================================================
-   LOGIC XỬ LÝ CLICK ĐỂ DI CHUYỂN (ẤN -> HIỆN ĐƯỜNG -> ẤN)
+   LOGIC XỬ LÝ CLICK ĐỂ DI CHUYỂN
    ============================================================= */
 
 function removeHighlights() {
@@ -93,7 +89,7 @@ function onSquareClick() {
 }
 
 /* =============================================================
-   TRÍ TUỆ NHÂN TẠO (AI) CƠ BẢN
+   TRÍ TUỆ NHÂN TẠO (AI)
    ============================================================= */
 
 function evaluateBoard(gameSate) {
@@ -173,7 +169,7 @@ function makeSmartMove() {
 }
 
 /* =============================================================
-   GIAO DIỆN & TRẠNG THÁI GAME
+   GIAO DIỆN & TRẠNG THÁI GAME (Đã nâng cấp CSS màu sắc)
    ============================================================= */
 
 function updateStatus() {
@@ -183,20 +179,22 @@ function updateStatus() {
 
     if (game.in_checkmate()) {
         status = 'HẾT CỜ! ' + moveColor + ' thua.';
-        $statusEl.css('color', '#d9534f').css('border-color', '#d9534f');
+        $statusEl.css({'color': '#ff4757', 'background-color': 'rgba(255, 71, 87, 0.15)', 'border': '1px solid #ff4757'});
     } else if (game.in_draw()) {
         status = 'HÒA CỜ!';
-        $statusEl.css('color', '#777').css('border-color', '#777');
+        $statusEl.css({'color': '#f1c40f', 'background-color': 'rgba(241, 196, 15, 0.15)', 'border': '1px solid #f1c40f'});
     } else {
         status = 'Lượt ' + moveColor;
         if (game.in_check()) {
             status += ' (BỊ CHIẾU!)';
-            $statusEl.css('color', '#d9534f').css('border-color', '#d9534f');
+            $statusEl.css({'color': '#ff4757', 'background-color': 'rgba(255, 71, 87, 0.15)', 'border': '1px solid #ff4757'});
         } else {
-            $statusEl.css('color', '#34495e').css('border-color', '#27ae60');
+            // Trạng thái bình thường
+            $statusEl.css({'color': '#2ed573', 'background-color': 'rgba(46, 213, 115, 0.15)', 'border': '1px solid #2ed573'});
         }
         if (gameMode === 'pve' && game.turn() === 'b') {
-            status = 'Máy đang nghĩ...';
+            status = 'Máy đang suy nghĩ... ⚙️';
+            $statusEl.css({'color': '#7bed9f', 'border': '1px solid #7bed9f'});
         }
     }
     $statusEl.html(status);
