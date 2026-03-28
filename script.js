@@ -1,40 +1,55 @@
 /* =============================================================
-   CẤU HÌNH & KHỞI TẠO BÀN CỜ
+   CONFIGURATION & INITIALIZATION (SỬA LỖI HIỆN QUÂN)
    ============================================================= */
 var board = null;
 var game = new Chess();
-var gameMode = 'pvp'; // Chế độ mặc định
+var gameMode = 'pvp'; // Default
 
-// Lưu trữ trạng thái click
-var squareSelected = null;
+// Interaction State
+var selectedSquare = null;
 var $board = $('#board');
 
-// Khởi tạo bàn cờ
+// Piece Image Path (Nâng cấp nguồn ảnh ổn định)
+var pieceThemePath = 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png';
+
 function initBoard() {
     var config = {
-        // draggable: true, // TẮT KÉO THẢ
+        // TẮT KÉO THẢ TƯỜNG MINH (NÂNG CẤP ĐỂ DÙNG ẤN)
+        draggable: false, 
         position: 'start',
-        // SỬA LỖI KHÔNG HIỆN QUÂN CỜ: Trỏ đến link ảnh online
-        pieceTheme: 'https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/img/chesspieces/wikipedia/{piece}.png',
     };
     board = Chessboard('board', config);
     
-    // Đăng ký sự kiện click chuột/chạm vào ô cờ
+    // NÂNG CẤP: Áp dụng ảnh quân cờ thủ công ngay khi khởi tạo
+    applyPieceImagesManual();
+
+    // Binds square clicks (NÂNG CẤP ĐỂ DÙNG ẤN)
     $board.on('click', '.square-55d63', onSquareClick);
     
     updateStatus();
 }
 
+// NÂNG CẤP: Hàm áp dụng ảnh quân cờ thủ công cho toàn bộ bàn cờ
+function applyPieceImagesManual() {
+    $('.square-55d63 img').each(function() {
+        var piece = $(this).attr('data-piece');
+        if (piece) {
+            var url = pieceThemePath.replace('{piece}', piece);
+            $(this).attr('src', url);
+        }
+    });
+}
+
 /* =============================================================
-   LOGIC XỬ LÝ CLICK ĐỂ DI CHUYỂN (Ấn -> Hiện đường -> Ấn)
+   INTERACTION LOGIC: CLICK TO MOVE (SỬA LỖI KÉO THẢ)
    ============================================================= */
 
-// Xóa các ô đang được tô màu highlight
+// Remove old highlights
 function removeHighlights() {
     $board.find('.square-55d63').removeClass('highlight-move highlight-selected');
 }
 
-// Thêm màu highlight vào ô được chọn và các ô có thể đi đến
+// Visual feedback for selection and possible moves
 function addHighlights(square, moves) {
     // Highlight ô đang chọn
     $board.find('.square-' + square).addClass('highlight-selected');
@@ -45,76 +60,77 @@ function addHighlights(square, moves) {
     });
 }
 
-// Xử lý khi click vào 1 ô trên bàn cờ
+// Logic handles 'Click-to-Move' (Ấn lần 1 -> Chọn quân; Ấn lần 2 -> Đi)
 function onSquareClick() {
-    // Nếu game kết thúc hoặc đến lượt máy đi ở chế độ PvE, không cho click
+    // Prevent interaction on game over or AI's turn
     if (game.game_over() || (gameMode === 'pve' && game.turn() === 'b')) return;
 
     var square = $(this).attr('data-square');
 
-    // --- BƯỚC 2: Ấn lần 2 (Đã chọn quân, giờ chọn ô đích để đi) ---
-    if (squareSelected) {
-        // Thử thực hiện nước đi
+    if (selectedSquare) {
+        // --- STEP 2: Attempt the move from already selected piece ---
         var move = game.move({
-            from: squareSelected,
+            from: selectedSquare,
             to: square,
-            promotion: 'q' // Tự động phong Hậu để đơn giản giao diện
+            promotion: 'q' // Auto-promote to Queen for simplicity
         });
 
-        // Nếu nước đi hợp lệ
         if (move) {
-            board.position(game.fen()); // Cập nhật hình ảnh
+            // Valid move
+            board.position(game.fen());
+            
+            // NÂNG CẤP: Áp dụng lại ảnh sau khi di chuyển
+            applyPieceImagesManual(); 
+            
+            selectedSquare = null;
             removeHighlights();
-            squareSelected = null; // Reset trạng thái chọn
             updateStatus();
             
-            // Nếu chế độ chơi với máy, gọi AI đi sau 300ms
+            // PvE AI Turn
             if (gameMode === 'pve' && !game.game_over()) {
                 window.setTimeout(makeSmartMove, 300);
             }
-        } 
-        // Nếu click vào ô không hợp lệ, hoặc click lại chính quân đó, hoặc click quân cùng màu khác
-        else {
+        } else {
+            // Invalid move to new square: Check if new square has a same-color piece to re-select
             removeHighlights();
-            squareSelected = null;
-            // Quay lại bước 1: xem ô mới click có phải quân mình không để chọn lại
             handleFirstClick(square);
         }
-    } 
-    // --- BƯỚC 1: Ấn lần 1 (Chọn quân cờ) ---
-    else {
+    } else {
+        // --- STEP 1: No piece selected, try to select one ---
         handleFirstClick(square);
     }
 }
 
-// Logic xử lý khi chưa chọn quân nào
+// Logic for initial selection and re-selection
 function handleFirstClick(square) {
-    // Lấy thông tin quân cờ tại ô vừa click
     var piece = game.get(square);
     
-    // Nếu click vào ô trống hoặc quân đối phương -> không làm gì
-    if (!piece || piece.color !== game.turn()) return;
+    // Ensure piece exists and is of correct turn
+    if (piece && piece.color === game.turn()) {
+        selectedSquare = square;
+        var moves = game.moves({
+            square: square,
+            verbose: true
+        });
+        
+        // No valid moves from this piece, deselect
+        if (moves.length === 0) {
+            selectedSquare = null;
+            return;
+        }
 
-    // Lấy danh sách các nước đi hợp lệ của quân này
-    var moves = game.moves({
-        square: square,
-        verbose: true
-    });
-
-    // Nếu không có nước đi nào -> không chọn
-    if (moves.length === 0) return;
-
-    // Lưu ô đã chọn và hiển thị highlight đường đi
-    squareSelected = square;
-    addHighlights(square, moves);
+        // Show selection and possible moves
+        addHighlights(square, moves);
+    } else {
+        selectedSquare = null;
+    }
 }
 
-
 /* =============================================================
-   TRÍ TUỆ NHÂN TẠO (AI) NÂNG CẤP: MINIMAX + ALPHA-BETA
+   AI LOGIC: MINIMAX + ALPHA-BETA (Giữ nguyên)
    ============================================================= */
 
-// Bảng giá trị vị trí cho từng loại quân (giúp máy biết chiếm trung tâm, phát triển quân)
+// Bảng giá trị vị trí cho từng loại quân
 var pawnEval = [
     [0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
     [5.0,  5.0,  5.0,  5.0,  5.0,  5.0,  5.0,  5.0],
@@ -245,20 +261,13 @@ function calcBestMove() {
     var newGameMoves = game.moves();
     var bestMove = null;
     var bestValue = -9999;
-    
-    // Độ sâu tính toán (Tăng lên máy sẽ khôn hơn nhưng chậm hơn)
-    // Mức 2 là vừa phải cho trình duyệt web
-    var depth = 2; 
+    var depth = 2; // Độ sâu tính toán
 
-    // Thử từng nước đi và đánh giá
     for (var i = 0; i < newGameMoves.length; i++) {
         var newGameMove = newGameMoves[i];
         game.move(newGameMove);
-        
-        // Tính giá trị nước đi bằng Minimax
         var value = minimax(depth - 1, game, -10000, 10000, false);
         game.undo();
-        
         if (value >= bestValue) {
             bestValue = value;
             bestMove = newGameMove;
@@ -274,11 +283,12 @@ function makeSmartMove() {
     var bestMove = calcBestMove();
     game.move(bestMove);
     board.position(game.fen());
+    applyPieceImagesManual(); // Áp dụng lại ảnh sau khi máy đi
     updateStatus();
 }
 
 /* =============================================================
-   CẬP NHẬT TRẠNG THÁI & HỆ THỐNG
+   SYSTEM STATUS & EVENT HANDLERS (Giữ nguyên)
    ============================================================= */
 
 function updateStatus() {
@@ -286,7 +296,6 @@ function updateStatus() {
     var moveColor = (game.turn() === 'w') ? 'Trắng' : 'Đen';
     var $statusEl = $('#status');
 
-    // Kiểm tra hết cờ, hòa
     if (game.in_checkmate()) {
         status = 'HẾT CỜ! ' + moveColor + ' thua cuộc.';
         $statusEl.css('color', '#d9534f').css('border-color', '#d9534f');
@@ -294,7 +303,6 @@ function updateStatus() {
         status = 'HÒA CỜ!';
         $statusEl.css('color', '#777').css('border-color', '#777');
     } else {
-        // Đang chơi
         status = 'Lượt ' + moveColor;
         if (game.in_check()) {
             status += ' (ĐANG BỊ CHIẾU!)';
@@ -302,29 +310,27 @@ function updateStatus() {
         } else {
             $statusEl.css('color', '#34495e').css('border-color', '#27ae60');
         }
-        
         if (gameMode === 'pve' && game.turn() === 'b') {
             status = 'Máy đang suy nghĩ...';
         }
     }
-
     $statusEl.html(status);
 }
 
-// Xử lý sự kiện thay đổi chế độ chơi và nút chơi mới
 $(document).ready(function() {
     initBoard();
 
     $('#resetBtn').on('click', function() {
         game.reset();
         board.start();
+        applyPieceImagesManual(); // NÂNG CẤP: Áp dụng lại ảnh sau khi chơi mới
         removeHighlights();
-        squareSelected = null;
+        selectedSquare = null;
         updateStatus();
     });
 
     $('#gameMode').on('change', function() {
         gameMode = $(this).val();
-        $('#resetBtn').click(); // Chơi ván mới khi đổi chế độ
+        $('#resetBtn').click();
     });
 });
