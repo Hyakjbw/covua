@@ -1,5 +1,5 @@
 /* =============================================================
-   KHỞI TẠO BÀN CỜ VÀ TRỎ ĐƯỜNG DẪN ẢNH CỦA BẠN
+   KHỞI TẠO BÀN CỜ VÀ TRỎ ĐƯỜNG DẪN ẢNH CHUẨN XÁC
    ============================================================= */
 var board = null;
 var game = new Chess();
@@ -9,12 +9,13 @@ var $board = $('#board');
 
 function initBoard() {
     var config = {
-        // 1. TẮT HOÀN TOÀN KÉO THẢ
+        // 1. TẮT HOÀN TOÀN KÉO THẢ (Chuyển sang chế độ Ấn)
         draggable: false, 
         position: 'start',
         
-        // 2. DÙNG THƯ MỤC ẢNH BẠN VỪA UP TRÊN GITHUB
-        pieceTheme: 'img/chesspieces/wikipedia/{piece}.png', 
+        // 2. GIẢI PHÁP TỐI THƯỢNG CHO ẢNH QUÂN CỜ:
+        // Lấy trực tiếp ảnh từ máy chủ gốc của tác giả thư viện (Đảm bảo 100% sống và tải được trên mọi thiết bị)
+        pieceTheme: 'https://raw.githubusercontent.com/oakmac/chessboardjs/master/website/img/chesspieces/wikipedia/{piece}.png', 
     };
     
     board = Chessboard('board', config);
@@ -40,78 +41,64 @@ function addHighlights(square, moves) {
 }
 
 function onSquareClick() {
-    // Không cho bấm nếu game kết thúc hoặc đang chờ máy đi
     if (game.game_over() || (gameMode === 'pve' && game.turn() === 'b')) return;
 
     var square = $(this).attr('data-square');
 
-    // Nếu bấm lại vào chính quân cờ đang chọn -> Hủy chọn
     if (selectedSquare === square) {
         selectedSquare = null;
         removeHighlights();
         return;
     }
 
-    // Nếu trước đó đã chọn 1 quân cờ (Bước 2: Chọn đích đến)
     if (selectedSquare) {
-        // Thử thực hiện nước đi
         var move = game.move({
             from: selectedSquare,
             to: square,
-            promotion: 'q' // Tự động phong Hậu
+            promotion: 'q' 
         });
 
         if (move) {
-            // Nước đi ĐÚNG LUẬT
-            board.position(game.fen()); // Cập nhật hình ảnh bàn cờ
+            board.position(game.fen()); 
             selectedSquare = null;
             removeHighlights();
             updateStatus();
             
-            // Nếu là chế độ chơi với máy, cho máy đi
             if (gameMode === 'pve' && !game.game_over()) {
                 window.setTimeout(makeSmartMove, 300);
             }
         } else {
-            // Nước đi SAI LUẬT (VD: bấm sang quân của mình để đổi lính)
             var piece = game.get(square);
             if (piece && piece.color === game.turn()) {
-                // Đổi sang chọn quân mới này
                 removeHighlights();
                 selectedSquare = square;
                 addHighlights(square, game.moves({ square: square, verbose: true }));
             } else {
-                // Bấm ra ô trống không đi được -> Hủy chọn
                 selectedSquare = null;
                 removeHighlights();
             }
         }
-    } 
-    // Nếu chưa chọn quân cờ nào (Bước 1: Chọn quân)
-    else {
+    } else {
         var piece = game.get(square);
-        // Chỉ được chọn quân của phe mình (đang đến lượt)
         if (piece && piece.color === game.turn()) {
             selectedSquare = square;
             var moves = game.moves({ square: square, verbose: true });
             if (moves.length > 0) {
                 addHighlights(square, moves);
             } else {
-                selectedSquare = null; // Không có nước đi thì không chọn
+                selectedSquare = null; 
             }
         }
     }
 }
 
 /* =============================================================
-   TRÍ TUỆ NHÂN TẠO (AI) BẢN CƠ BẢN ĐỂ CHẠY MƯỢT TRÊN ĐIỆN THOẠI
+   TRÍ TUỆ NHÂN TẠO (AI) CƠ BẢN
    ============================================================= */
 
 function evaluateBoard(gameSate) {
     var board = gameSate.board();
     var totalEval = 0;
-    
-    // Đơn giản hóa bảng tính điểm để điện thoại không bị đơ
     var pieceValues = { 'p': 10, 'r': 50, 'n': 30, 'b': 30, 'q': 90, 'k': 900 };
 
     for (var i = 0; i < 8; i++) {
@@ -158,7 +145,7 @@ function calcBestMove() {
     var moves = game.moves();
     var bestMove = null;
     var bestValue = -9999;
-    var depth = 2; // AI suy nghĩ trước 2 bước
+    var depth = 2; 
 
     for (var i = 0; i < moves.length; i++) {
         var move = moves[i];
@@ -166,7 +153,6 @@ function calcBestMove() {
         var value = minimax(depth - 1, game, -10000, 10000, false);
         game.undo();
         
-        // Thêm yếu tố ngẫu nhiên nhẹ để máy không đi rập khuôn 1 kiểu
         value += Math.random() * 0.1; 
 
         if (value > bestValue) {
@@ -174,7 +160,6 @@ function calcBestMove() {
             bestMove = move;
         }
     }
-    // Nếu hết cờ không tính được, đi ngẫu nhiên nước hợp lệ
     return bestMove || moves[Math.floor(Math.random() * moves.length)];
 }
 
