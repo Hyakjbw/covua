@@ -174,27 +174,29 @@ function makeSmartMove() {
 
 function updateStatus() {
     var status = '';
-    var moveColor = (game.turn() === 'w') ? 'Trắng' : 'Đen';
+    var moveColor = (game.turn() === 'w') ? 'TRẮNG' : 'ĐEN';
     var $statusEl = $('#status');
 
     if (game.in_checkmate()) {
-        status = 'HẾT CỜ! ' + moveColor + ' thua.';
-        $statusEl.css({'color': '#ff4757', 'background-color': 'rgba(255, 71, 87, 0.15)', 'border': '1px solid #ff4757'});
+        status = 'HẾT CỜ! ' + moveColor + ' THUA.';
+        $statusEl.css({'color': '#ff6b81', 'background-color': 'rgba(255, 107, 129, 0.2)', 'border': '1px solid #ff6b81'});
     } else if (game.in_draw()) {
         status = 'HÒA CỜ!';
-        $statusEl.css({'color': '#f1c40f', 'background-color': 'rgba(241, 196, 15, 0.15)', 'border': '1px solid #f1c40f'});
+        $statusEl.css({'color': '#feca57', 'background-color': 'rgba(254, 202, 87, 0.2)', 'border': '1px solid #feca57'});
     } else {
-        status = 'Lượt ' + moveColor;
+        status = 'LƯỢT ĐI: ' + moveColor;
         if (game.in_check()) {
             status += ' (BỊ CHIẾU!)';
-            $statusEl.css({'color': '#ff4757', 'background-color': 'rgba(255, 71, 87, 0.15)', 'border': '1px solid #ff4757'});
+            $statusEl.css({'color': '#ff6b81', 'background-color': 'rgba(255, 107, 129, 0.2)', 'border': '1px solid #ff6b81'});
         } else {
-            // Trạng thái bình thường
-            $statusEl.css({'color': '#2ed573', 'background-color': 'rgba(46, 213, 115, 0.15)', 'border': '1px solid #2ed573'});
+            // Sửa lại thành chữ Trắng tinh, nền sáng hơn để cực kỳ dễ nhìn
+            $statusEl.css({'color': '#ffffff', 'background-color': 'rgba(255, 255, 255, 0.2)', 'border': '1px solid #ffffff'});
         }
+        
         if (gameMode === 'pve' && game.turn() === 'b') {
             status = 'Máy đang suy nghĩ... ⚙️';
-            $statusEl.css({'color': '#7bed9f', 'border': '1px solid #7bed9f'});
+            // Máy nghĩ sẽ hiện màu xanh ngọc bích sáng
+            $statusEl.css({'color': '#1dd1a1', 'background-color': 'rgba(29, 209, 161, 0.2)', 'border': '1px solid #1dd1a1'});
         }
     }
     $statusEl.html(status);
