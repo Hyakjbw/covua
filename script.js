@@ -11,9 +11,13 @@ function initBoard() {
     var config = {
         draggable: false, 
         position: 'start',
-        // Dùng chính thư mục ảnh bạn đã up lên GitHub!
-        // Tốc độ bàn thờ và 100% không bao giờ lỗi mất quân nữa
-        pieceTheme: 'img/chesspieces/wikipedia/{piece}.png', 
+        
+        // Kỹ thuật Cache-Busting: Ép trình duyệt điện thoại tải lại ảnh mới hoàn toàn
+        pieceTheme: function(piece) {
+            // Thêm '?v=thời_gian_hiện_tại' để link ảnh luôn mới mẻ với trình duyệt
+            var timestamp = new Date().getTime();
+            return 'img/chesspieces/wikipedia/' + piece + '.png?v=' + timestamp;
+        }
     };
     
     board = Chessboard('board', config);
