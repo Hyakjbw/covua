@@ -15,11 +15,9 @@ function initBoard() {
     var config = {
         draggable: false, 
         position: 'start',
-        
-        // Trả lại đường dẫn có gắn mã version cố định
-        pieceTheme: function(piece) {
-            return 'img/chesspieces/wikipedia/' + piece + '.png?v=' + appVersion;
-        }
+        // Dùng chuỗi tĩnh tuyệt đối. 
+        // Thư viện sẽ tái sử dụng ảnh thay vì tải lại, chấm dứt hoàn toàn việc nháy hình.
+        pieceTheme: 'img/chesspieces/wikipedia/{piece}.png' 
     };
     
     board = Chessboard('board', config);
