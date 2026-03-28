@@ -1,5 +1,5 @@
 /* =============================================================
-   KHỞI TẠO BÀN CỜ VÀ TRỎ ĐƯỜNG DẪN ẢNH CHUẨN XÁC
+   KHỞI TẠO BÀN CỜ VÀ SỬA LỖI NHÁY HÌNH
    ============================================================= */
 var board = null;
 var game = new Chess();
@@ -7,16 +7,18 @@ var gameMode = 'pvp';
 var selectedSquare = null;
 var $board = $('#board');
 
+// TẠO MÃ PHÁ CACHE 1 LẦN DUY NHẤT BÊN NGOÀI HÀM
+// Giúp ảnh tải mới khi F5, nhưng không bị tải lại khi đang đánh cờ
+var appVersion = new Date().getTime(); 
+
 function initBoard() {
     var config = {
         draggable: false, 
         position: 'start',
         
-        // Kỹ thuật Cache-Busting: Ép trình duyệt điện thoại tải lại ảnh mới hoàn toàn
+        // Trả lại đường dẫn có gắn mã version cố định
         pieceTheme: function(piece) {
-            // Thêm '?v=thời_gian_hiện_tại' để link ảnh luôn mới mẻ với trình duyệt
-            var timestamp = new Date().getTime();
-            return 'img/chesspieces/wikipedia/' + piece + '.png?v=' + timestamp;
+            return 'img/chesspieces/wikipedia/' + piece + '.png?v=' + appVersion;
         }
     };
     
